@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shop4You</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    :root {
+      --bg: #0f172a;
+      --bg-light: #1e293b;
+      --card-bg: rgba(30, 41, 59, 0.6);
+      --border: #334155;
+      --text: #f8fafc;
+      --text-secondary: #94a3b8;
+      --accent: #2563eb;
+      --accent-hover: #3b82f6;
+      --success: #10b981;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    header {
+      padding: 20px 0;
+      text-align: center;
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #60a5fa, #3b82f6, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 15px;
+    }
+
+    .hero {
+      text-align: center;
+      padding: 40px 0 30px;
+    }
+
+    .hero h1 {
+      font-size: 36px;
+      font-weight: 800;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto 25px;
+    }
+
+    .highlight {
+      color: #60a5fa;
+      display: block;
+      margin-top: 8px;
+    }
+
+    .search-container {
+      max-width: 500px;
+      margin: 0 auto 40px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 16px 20px 16px 45px;
+      background: var(--bg-light);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      color: white;
+      font-size: 16px;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-secondary);
+    }
+
+    .create-btn {
+      background: linear-gradient(90deg, var(--accent), #06b6d4);
+      color: white;
+      border: none;
+      padding: 16px 32px;
+      font-size: 18px;
+      font-weight: 600;
+      border-radius: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3);
+      margin: 0 auto 40px;
+      display: block;
+      max-width: 300px;
+    }
+
+    .create-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px rgba(37, 99, 235, 0.4);
+    }
+
+    .section {
+      padding: 40px 0;
+    }
+
+    .section-title {
+      text-align: center;
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .section-subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto 30px;
+    }
+
+    .stores-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .store-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .store-card:hover {
+      transform: translateY(-5px);
+      border-color: var(--accent);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .store-image {
+      height: 180px;
+      width: 100%;
+      object-fit: cover;
+    }
+
+    .store-content {
+      padding: 20px;
+    }
+
+    .store-name {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .store-desc {
+      color: var(--text-secondary);
+      font-size: 15px;
+      margin-bottom: 12px;
+      min-height: 40px;
+    }
+
+    .store-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    .store-domain {
+      color: #60a5fa;
+      font-weight: 600;
+    }
+
+    .visit-link {
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 25px;
+      text-align: center;
+    }
+
+    .feature-icon {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, var(--accent), #06b6d4);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      color: white;
+      font-size: 24px;
+    }
+
+    .feature-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .feature-desc {
+      color: var(--text-secondary);
+      font-size: 15px;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 20px;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin: 20px 0;
+    }
+
+    .footer-link {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 15px;
+      transition: color 0.2s;
+    }
+
+    .footer-link:hover {
+      color: white;
+    }
+
+    .copyright {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .modal {
+      background: var(--bg-light);
+      border-radius: 24px;
+      width: 95%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+      margin: 20px;
+      transform: scale(0.95);
+      transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.active .modal {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      padding: 24px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 15px;
+    }
+
+    .close-modal {
+      position: absolute;
+      right: 24px;
+      top: 24px;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 20px;
+      cursor: pointer;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      transition: background 0.2s;
+    }
+
+    .close-modal:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 14px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: white;
+      font-size: 16px;
+      outline: none;
+    }
+
+    .form-input:focus {
+      border-color: var(--accent);
+    }
+
+    .upload-area {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 30px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .upload-area:hover {
+      border-color: var(--accent);
+      background: rgba(37, 99, 235, 0.1);
+    }
+
+    .upload-text {
+      margin-top: 12px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .btn {
+      padding: 14px 24px;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      width: 100%;
+    }
+
+    .btn-primary {
+      background: linear-gradient(90deg, var(--accent), #06b6d4);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (min-width: 768px) {
+      .hero h1 { font-size: 48px; }
+      .hero p { font-size: 20px; }
+      .stores-grid { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+      .features { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (min-width: 1024px) {
+      .stores-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    /* Store View */
+    .store-view {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 20px;
+      background-size: cover;
+      background-position: center;
+    }
+
+    .store-content-wrapper {
+      background: rgba(0, 0, 0, 0.7);
+      padding: 40px;
+      border-radius: 20px;
+      max-width: 800px;
+      width: 100%;
+    }
+
+    .store-title {
+      font-size: 3rem;
+      margin-bottom: 20px;
+      color: white;
+    }
+
+    .store-description {
+      font-size: 1.2rem;
+      color: #e2e8f0;
+      margin-bottom: 30px;
+    }
+
+    .back-to-marketplace {
+      background: linear-gradient(90deg, var(--accent), #06b6d4);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div id="main-app" class="container">
+    <header>
+      <div class="logo">Shop4You</div>
+    </header>
+
+    <section class="hero">
+      <h1>Create Your Own Online Store</h1>
+      <p>
+        Build a beautiful store without coding.
+        <span class="highlight">Premium subdomain • Stripe payments • Ready in minutes</span>
+      </p>
+      
+      <div class="search-container">
+        <div style="position: relative;">
+          <i class="fas fa-search search-icon"></i>
+          <input type="text" class="search-input" id="search-input" placeholder="Search stores or products...">
+        </div>
+      </div>
+      
+      <button class="create-btn" id="create-store-btn">
+        <i class="fas fa-plus"></i> Create Your Store
+      </button>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Discover Amazing Stores</h2>
+      <p class="section-subtitle">Browse premium collections from creators worldwide</p>
+      
+      <div class="stores-grid" id="stores-container">
+        <!-- Stores will be loaded here -->
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Why Choose Shop4You?</h2>
+      <p class="section-subtitle">Everything you need to start selling online</p>
+      
+      <div class="features">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-bolt"></i>
+          </div>
+          <h3 class="feature-title">Zero Coding</h3>
+          <p class="feature-desc">Create a professional store without any technical knowledge</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-credit-card"></i>
+          </div>
+          <h3 class="feature-title">Stripe Payments</h3>
+          <p class="feature-desc">Connect Stripe and receive payments directly to your account</p>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon">
+            <i class="fas fa-palette"></i>
+          </div>
+          <h3 class="feature-title">Custom Design</h3>
+          <p class="feature-desc">Upload backgrounds, add titles, and make it uniquely yours</p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="logo" style="font-size: 24px; margin-bottom: 15px;">Shop4You</div>
+      <p class="section-subtitle" style="margin: 0 0 20px;">Premium e-commerce for creators</p>
+      
+      <div class="footer-links">
+        <a href="#" class="footer-link" id="terms-link">Terms</a>
+        <a href="#" class="footer-link" id="privacy-link">Privacy</a>
+        <a href="#" class="footer-link" id="help-link">Help Center</a>
+        <a href="mailto:support@shop4you.com" class="footer-link">Contact</a>
+      </div>
+      
+      <p class="copyright">© 2024 Shop4You. All rights reserved.</p>
+    </footer>
+  </div>
+
+  <div id="store-view" class="store-view" style="display: none;">
+    <div class="store-content-wrapper">
+      <h1 class="store-title" id="dynamic-store-title">Store Name</h1>
+      <p class="store-description" id="dynamic-store-description">Store description</p>
+      <a href="/" class="back-to-marketplace">← Back to Marketplace</a>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="create-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">Create Your Store</h2>
+        <button class="close-modal" id="close-modal">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Store Name</label>
+          <input type="text" class="form-input" id="store-name" placeholder="e.g., Luxe Watches">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Your Subdomain</label>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="text" class="form-input" id="subdomain" placeholder="yourstore">
+            <span style="color: #60a5fa;">.shop4you.netlify.app</span>
+          </div>
+          <p style="color: #94a3b8; font-size: 13px; margin-top: 6px;">
+            Your store will be live at: <span id="preview-url" style="color: #60a5fa;">yourstore.shop4you.netlify.app</span>
+          </p>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Background Image</label>
+          <div class="upload-area" id="upload-area">
+            <i class="fas fa-cloud-upload-alt" style="font-size: 32px; color: #60a5fa;"></i>
+            <div style="margin-top: 10px; font-weight: 600;">Click to upload</div>
+            <div class="upload-text">Recommended: 1920x1080px</div>
+            <input type="file" id="image-upload" accept="image/*" style="display: none;">
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Store Title</label>
+          <input type="text" class="form-input" id="store-title" placeholder="Your Amazing Store">
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea class="form-input" id="store-desc" rows="3" placeholder="Tell customers about your store..."></textarea>
+        </div>
+        
+        <button class="btn btn-primary" id="create-final-btn">
+          <span id="create-btn-text">Create My Store</span>
+          <span id="create-btn-loader" class="loading" style="display: none; margin-left: 10px;"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      // === DETECT SUBDOMAIN ===
+      const hostname = window.location.hostname;
+      const netlifyDomain = 'thriving-empanada-9f9e6e.netlify.app';
+      const customDomain = 'shop4you.netlify.app';
+      
+      // Check if we're on a subdomain
+      if (hostname !== netlifyDomain && !hostname.startsWith('www.')) {
+        // We're on a subdomain like store123.thriving-empanada-9f9e6e.netlify.app
+        const subdomain = hostname.split('.')[0];
+        displayStoreView(subdomain);
+        return;
+      }
+
+      // If not on subdomain, show main marketplace
+      document.getElementById('main-app').style.display = 'block';
+
+      // === SUPABASE CONFIGURATION ===
+      const supabaseUrl = 'https://djbspbwohmdkxqtxhdcx.supabase.co';
+      const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqYnNwYndvaG1ka3hxdHhoZGN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIzNjM0MzIsImV4cCI6MjA3NzkzOTQzMn0.6PHmss7cJCrVeHaFiYQmYzLudDJ7bc7dY_f2lvEBH2c';
+      
+      if (!window.supabase) {
+        console.error('Supabase SDK not loaded!');
+        return;
+      }
+      
+      const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+
+      // DOM Elements
+      const storesContainer = document.getElementById('stores-container');
+      const searchInput = document.getElementById('search-input');
+      const createBtn = document.getElementById('create-store-btn');
+      const modal = document.getElementById('create-modal');
+      const closeModal = document.getElementById('close-modal');
+      const storeName = document.getElementById('store-name');
+      const subdomainInput = document.getElementById('subdomain');
+      const storeTitle = document.getElementById('store-title');
+      const storeDesc = document.getElementById('store-desc');
+      const uploadArea = document.getElementById('upload-area');
+      const imageUpload = document.getElementById('image-upload');
+      const previewUrl = document.getElementById('preview-url');
+      const createFinalBtn = document.getElementById('create-final-btn');
+      const createBtnText = document.getElementById('create-btn-text');
+      const createBtnLoader = document.getElementById('create-btn-loader');
+
+      // === FUNCTIONS ===
+      async function loadStores() {
+        try {
+          const { data, error } = await supabase
+            .from('stores')
+            .select('*')
+            .order('created_at', { ascending: false });
+          
+          if (error) throw error;
+          renderStores(data || []);
+        } catch (error) {
+          console.error('Error loading stores:', error);
+          renderStores([]);
+        }
+      }
+
+      async function uploadImage(file) {
+        if (!file) return null;
+        const fileName = `${Date.now()}_${file.name}`;
+        
+        const { data, error } = await supabase.storage
+          .from('store-backgrounds')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+        
+        if (error) throw error;
+        
+        const { publicUrl } = supabase.storage
+          .from('store-backgrounds')
+          .getPublicUrl(fileName);
+        
+        return publicUrl.publicUrl;
+      }
+
+      function renderStores(storesToShow) {
+        storesContainer.innerHTML = '';
+        if (storesToShow.length === 0) {
+          storesContainer.innerHTML = '<div style="text-align: center; color: #94a3b8; grid-column: 1 / -1; padding: 40px 0;">No stores found. Be the first to create one!</div>';
+          return;
+        }
+        
+        storesToShow.forEach(store => {
+          // Create store URL with subdomain
+          const fullUrl = `https://${store.subdomain}.thriving-empanada-9f9e6e.netlify.app`;
+          const card = document.createElement('div');
+          card.className = 'store-card';
+          card.innerHTML = `
+            <img src="${store.background_image || 'https://placehold.co/400x200/1e293b/60a5fa?text=SHOP4YOU'}" alt="${store.name}" class="store-image" onerror="this.src='https://placehold.co/400x200/1e293b/60a5fa?text=SHOP4YOU'">
+            <div class="store-content">
+              <h3 class="store-name">${store.name}</h3>
+              <p class="store-desc">${store.description || 'Welcome to my store!'}</p>
+              <div class="store-footer">
+                <span class="store-domain">${store.subdomain}.thriving-empanada-9f9e6e.netlify.app</span>
+                <a href="${fullUrl}" class="visit-link">
+                  Visit <i class="fas fa-arrow-right"></i>
+                </a>
+              </div>
+            </div>
+          `;
+          storesContainer.appendChild(card);
+        });
+      }
+
+      function displayStoreView(subdomain) {
+        // Hide main app
+        document.getElementById('main-app').style.display = 'none';
+        document.getElementById('store-view').style.display = 'flex';
+        
+        // Load store data from Supabase
+        loadStoreBySubdomain(subdomain);
+      }
+
+      async function loadStoreBySubdomain(subdomain) {
+        try {
+          const { data, error } = await supabase
+            .from('stores')
+            .select('*')
+            .eq('subdomain', subdomain)
+            .single();
+          
+          if (error) throw error;
+          
+          // Set store title and description
+          document.getElementById('dynamic-store-title').textContent = data.store_title || data.name;
+          document.getElementById('dynamic-store-description').textContent = data.description || 'Welcome to my store!';
+          
+          // Set background image
+          const storeView = document.getElementById('store-view');
+          if (data.background_image) {
+            storeView.style.backgroundImage = `url(${data.background_image})`;
+          }
+          
+        } catch (error) {
+          console.error('Store not found:', error);
+          document.getElementById('dynamic-store-title').textContent = 'Store Not Found';
+          document.getElementById('dynamic-store-description').textContent = 'The store you are looking for does not exist.';
+        }
+      }
+
+      function showLoading(show) {
+        createBtnText.style.display = show ? 'none' : 'inline';
+        createBtnLoader.style.display = show ? 'inline-block' : 'none';
+        createFinalBtn.disabled = show;
+      }
+
+      function updatePreviewUrl() {
+        const domain = subdomainInput.value || storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yourstore';
+        previewUrl.textContent = `${domain}.thriving-empanada-9f9e6e.netlify.app`;
+      }
+
+      // === EVENT LISTENERS ===
+      createBtn.addEventListener('click', () => {
+        modal.classList.add('active');
+        storeName.value = '';
+        subdomainInput.value = '';
+        storeTitle.value = '';
+        storeDesc.value = '';
+        uploadArea.innerHTML = `
+          <i class="fas fa-cloud-upload-alt" style="font-size: 32px; color: #60a5fa;"></i>
+          <div style="margin-top: 10px; font-weight: 600;">Click to upload</div>
+          <div class="upload-text">Recommended: 1920x1080px</div>
+          <input type="file" id="image-upload" accept="image/*" style="display: none;">
+        `;
+        document.getElementById('image-upload').addEventListener('change', () => {});
+        updatePreviewUrl();
+      });
+
+      uploadArea.addEventListener('click', () => {
+        imageUpload.click();
+      });
+
+      [storeName, subdomainInput].forEach(el => {
+        el.addEventListener('input', updatePreviewUrl);
+      });
+
+      closeModal.addEventListener('click', () => {
+        modal.classList.remove('active');
+      });
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.classList.remove('active');
+        }
+      });
+
+      createFinalBtn.addEventListener('click', async () => {
+        const name = storeName.value.trim();
+        if (!name) {
+          alert('Please enter your store name');
+          return;
+        }
+        
+        let domain = subdomainInput.value.trim();
+        if (!domain) {
+          domain = storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '');
+        }
+        if (!domain || domain.length < 3) {
+          domain = 'store' + Date.now().toString().slice(-6);
+        }
+        
+        const title = storeTitle.value.trim() || name;
+        const description = storeDesc.value.trim() || `Welcome to ${name}!`;
+        
+        showLoading(true);
+        
+        try {
+          let imageUrl = null;
+          if (imageUpload.files.length > 0) {
+            imageUrl = await uploadImage(imageUpload.files[0]);
+          }
+          
+          const { data, error } = await supabase
+            .from('stores')
+            .insert([
+              {
+                user_id: '00000000-0000-0000-0000-000000000000',
+                name: name,
+                subdomain: domain,
+                store_title: title,
+                description: description,
+                background_image: imageUrl
+              }
+            ])
+            .select();
+          
+          if (error) throw error;
+          
+          const fullUrl = `https://${domain}.thriving-empanada-9f9e6e.netlify.app`;
+          alert(`🎉 Your store "${name}" has been created!\n\nYour store is live at:\n${fullUrl}`);
+          modal.classList.remove('active');
+          loadStores();
+          
+        } catch (error) {
+          console.error('Error:', error);
+          alert('❌ Error: ' + (error.message || 'Failed to create store'));
+        } finally {
+          showLoading(false);
+        }
+      });
+
+      searchInput.addEventListener('input', async (e) => {
+        const query = e.target.value.toLowerCase();
+        if (!query) {
+          loadStores();
+          return;
+        }
+        
+        const { data, error } = await supabase
+          .from('stores')
+          .select('*')
+          .or(`name.ilike.%${query}%,description.ilike.%${query}%,subdomain.ilike.%${query}%`);
+        
+        if (!error) {
+          renderStores(data || []);
+        }
+      });
+
+      // Footer links
+      document.getElementById('terms-link').addEventListener('click', (e) => { e.preventDefault(); alert('Terms of Service\n\nDemo version.'); });
+      document.getElementById('privacy-link').addEventListener('click', (e) => { e.preventDefault(); alert('Privacy Policy\n\nDemo version.'); });
+      document.getElementById('help-link').addEventListener('click', (e) => { e.preventDefault(); alert('Help Center\n\n1. Create store\n2. Add details\n3. Connect Stripe\n4. Start selling!'); });
+
+      // Load stores
+      loadStores();
+    });
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
