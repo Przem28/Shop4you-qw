@@ -646,32 +646,10 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
-      // === DETECT SUBDOMAIN ===
       const hostname = window.location.hostname;
       const mainDomain = 'site4you.store';
       
-      // Show main marketplace if on main domain
-      if (hostname === mainDomain || hostname === 'www.' + mainDomain) {
-        document.getElementById('main-app').style.display = 'block';
-        return;
-      }
-      
-      // Otherwise, assume it's a subdomain and show store
-      const subdomain = hostname.split('.')[0];
-      displayStoreView(subdomain);
-    });
-
-    // === SUPABASE LOGIC (only runs on main domain) ===
-    document.addEventListener('DOMContentLoaded', async () => {
-      const hostname = window.location.hostname;
-      const mainDomain = 'site4you.store';
-      
-      // Only run Supabase code on main domain
-      if (hostname !== mainDomain && hostname !== 'www.' + mainDomain) {
-        return;
-      }
-      
-      // === SUPABASE CONFIGURATION ===
+      // === POPRAWNE SUPABASE CONFIGURATION ===
       const supabaseUrl = 'https://djbspbwohmdkxqtxhdcx.supabase.co';
       const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqYnNwYndvaG1ka3hxdHhoZGN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIzNjM0MzIsImV4cCI6MjA3NzkzOTQzMn0.6PHmss7cJCrVeHaFiYQmYzLudDJ7bc7dY_f2lvEBH2c';
       
@@ -682,7 +660,48 @@
       
       const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
 
-      // DOM Elements
+      // === FUNKCJE DLA SUBDOMENY – MUSZĄ BYĆ TU ===
+      async function loadStoreBySubdomain(subdomain) {
+        try {
+          const { data, error } = await supabase
+            .from('stores')
+            .select('*')
+            .eq('subdomain', subdomain)
+            .single();
+          
+          if (error) throw error;
+          
+          document.getElementById('dynamic-store-title').textContent = data.store_title || data.name;
+          document.getElementById('dynamic-store-description').textContent = data.description || 'Welcome to my store!';
+          
+          const storeView = document.getElementById('store-view');
+          if (data.background_image) {
+            storeView.style.backgroundImage = `url(${data.background_image})`;
+          } else {
+            storeView.style.background = 'var(--bg)';
+          }
+        } catch (error) {
+          console.error('Store not found:', error);
+          document.getElementById('dynamic-store-title').textContent = 'Store Not Found';
+          document.getElementById('dynamic-store-description').textContent = 'The store you are looking for does not exist.';
+          document.getElementById('store-view').style.background = 'var(--bg)';
+        }
+      }
+
+      function displayStoreView(subdomain) {
+        document.getElementById('main-app').style.display = 'none';
+        document.getElementById('store-view').style.display = 'flex';
+        loadStoreBySubdomain(subdomain);
+      }
+
+      // === JEŚLI TO SUBDOMENA – POKAŻ SKLEP I WYJDŹ ===
+      if (hostname !== mainDomain && hostname !== 'www.' + mainDomain) {
+        const subdomain = hostname.split('.')[0];
+        displayStoreView(subdomain);
+        return;
+      }
+
+      // === RESZTA KODU DLA STRONY GŁÓWNEJ (marketplace) ===
       const storesContainer = document.getElementById('stores-container');
       const searchInput = document.getElementById('search-input');
       const createBtn = document.getElementById('create-store-btn');
@@ -699,7 +718,6 @@
       const createBtnText = document.getElementById('create-btn-text');
       const createBtnLoader = document.getElementById('create-btn-loader');
 
-      // === FUNCTIONS ===
       async function loadStores() {
         try {
           const { data, error } = await supabase
@@ -763,41 +781,6 @@
         });
       }
 
-      function displayStoreView(subdomain) {
-        document.getElementById('main-app').style.display = 'none';
-        document.getElementById('store-view').style.display = 'flex';
-        
-        loadStoreBySubdomain(subdomain);
-      }
-
-      async function loadStoreBySubdomain(subdomain) {
-        try {
-          const { data, error } = await supabase
-            .from('stores')
-            .select('*')
-            .eq('subdomain', subdomain)
-            .single();
-          
-          if (error) throw error;
-          
-          document.getElementById('dynamic-store-title').textContent = data.store_title || data.name;
-          document.getElementById('dynamic-store-description').textContent = data.description || 'Welcome to my store!';
-          
-          const storeView = document.getElementById('store-view');
-          if (data.background_image) {
-            storeView.style.backgroundImage = `url(${data.background_image})`;
-          } else {
-            storeView.style.background = 'var(--bg)';
-          }
-          
-        } catch (error) {
-          console.error('Store not found:', error);
-          document.getElementById('dynamic-store-title').textContent = 'Store Not Found';
-          document.getElementById('dynamic-store-description').textContent = 'The store you are looking for does not exist.';
-          document.getElementById('store-view').style.background = 'var(--bg)';
-        }
-      }
-
       function showLoading(show) {
         createBtnText.style.display = show ? 'none' : 'inline';
         createBtnLoader.style.display = show ? 'inline-block' : 'none';
@@ -805,11 +788,13 @@
       }
 
       function updatePreviewUrl() {
-        const domain = subdomainInput.value || storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yourstore';
+        let domain = subdomainInput.value.trim();
+        if (!domain) {
+          domain = storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yourstore';
+        }
         previewUrl.textContent = `${domain}.site4you.store`;
       }
 
-      // === EVENT LISTENERS ===
       createBtn.addEventListener('click', () => {
         modal.classList.add('active');
         storeName.value = '';
@@ -916,12 +901,10 @@
         }
       });
 
-      // Footer links
       document.getElementById('terms-link').addEventListener('click', (e) => { e.preventDefault(); alert('Terms of Service\n\nDemo version.'); });
       document.getElementById('privacy-link').addEventListener('click', (e) => { e.preventDefault(); alert('Privacy Policy\n\nDemo version.'); });
       document.getElementById('help-link').addEventListener('click', (e) => { e.preventDefault(); alert('Help Center\n\n1. Create store\n2. Add details\n3. Connect Stripe\n4. Start selling!'); });
 
-      // Load stores
       loadStores();
     });
   </script>
