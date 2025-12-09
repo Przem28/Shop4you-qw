@@ -733,6 +733,7 @@
     // === SUPABASE CONFIGURATION ===
     const supabaseUrl = 'https://djbspbwohmdkxqtxhdcx.supabase.co';
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqYnNwYndvaG1ka3hxdHhoZGN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIzNjM0MzIsImV4cCI6MjA3NzkzOTQzMn0.6PHmss7cJCrVeHaFiYQmYzLudDJ7bc7dY_f2lvEBH2c';
+    // inicjalizacja klienta - robimy to raz i używamy globalnie
     const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
 
     // DOM Elements
@@ -761,8 +762,9 @@
 
     // === AUTH FUNCTIONS ===
     async function checkUser() {
-      const {  { user } } = await supabase.auth.getUser();
-      return user;
+      // poprawne wyciągnięcie usera
+      const { data } = await supabase.auth.getUser();
+      return data?.user ?? null;
     }
 
     async function handleLogin() {
@@ -786,14 +788,14 @@
       
       alert('Check your email for a magic link to sign in!');
       
-      // Po wysłaniu magic linka, pokaż wybór roli (jeśli użytkownik się zaloguje)
-      // To będzie działało po odświeżeniu strony po kliknięciu linku
-      setTimeout(() => {
-        const user = checkUser();
+      // Po wysłaniu magic linka, sprawdzamy czy user zalogowany (po chwili)
+      setTimeout(async () => {
+        const user = await checkUser();
         if (user) {
-          showRoleSelect();
+          // pokaż wybór roli jeśli ktoś się zalogował
+          roleSelect.style.display = 'block';
         }
-      }, 5000); // Sprawdź po 5 sekundach
+      }, 3000);
     }
 
     // === STORE FUNCTIONS ===
@@ -814,7 +816,7 @@
 
     function renderStores(storesToShow) {
       storesContainer.innerHTML = '';
-      if (storesToShow.length === 0) {
+      if (!storesToShow || storesToShow.length === 0) {
         storesContainer.innerHTML = '<div style="text-align: center; color: #94a3b8; grid-column: 1 / -1; padding: 40px 0;">No stores found. Be the first to create one!</div>';
         return;
       }
@@ -824,13 +826,13 @@
         const card = document.createElement('div');
         card.className = 'store-card';
         card.innerHTML = `
-          <img src="${store.background_image || 'https://placehold.co/400x200/1e293b/60a5fa?text=SITE4YOU'}" alt="${store.name}" class="store-image" onerror="this.src='https://placehold.co/400x200/1e293b/60a5fa?text=SITE4YOU'">
+          <img src="${store.background_image || 'https://placehold.co/400x200/1e293b/60a5fa?text=SITE4YOU'}" alt="${escapeHtml(store.name)}" class="store-image" onerror="this.src='https://placehold.co/400x200/1e293b/60a5fa?text=SITE4YOU'">
           <div class="store-content">
-            <h3 class="store-name">${store.name}</h3>
-            <p class="store-desc">${store.description || 'Welcome to my store!'}</p>
+            <h3 class="store-name">${escapeHtml(store.name)}</h3>
+            <p class="store-desc">${escapeHtml(store.description || 'Welcome to my store!')}</p>
             <div class="store-footer">
-              <span class="store-domain">${store.subdomain}.site4you.store</span>
-              <a href="${fullUrl}" class="visit-link">
+              <span class="store-domain">${escapeHtml(store.subdomain)}.site4you.store</span>
+              <a href="${fullUrl}" class="visit-link" target="_blank" rel="noopener">
                 Visit <i class="fas fa-arrow-right"></i>
               </a>
             </div>
@@ -840,28 +842,38 @@
       });
     }
 
+    function escapeHtml(text = '') {
+      return String(text)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
     async function uploadImage(file, userId) {
       if (!file || !userId) return null;
-      const fileName = `${userId}/${Date.now()}_${file.name}`;
+      const fileName = `${userId}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
       
-      const { data, error } = await supabase.storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('store-backgrounds')
         .upload(fileName, file, {
           cacheControl: '3600',
           upsert: false
         });
       
-      if (error) throw error;
+      if (uploadError) throw uploadError;
       
-      const {  { publicUrl } } = supabase.storage
+      const { data: publicData } = await supabase.storage
         .from('store-backgrounds')
         .getPublicUrl(fileName);
       
-      return publicUrl;
+      return publicData?.publicUrl ?? null;
     }
 
     function displayStoreView(subdomain) {
       mainApp.style.display = 'none';
+      authScreen.style.display = 'none';
       document.getElementById('store-view').style.display = 'flex';
       
       loadStoreBySubdomain(subdomain);
@@ -875,7 +887,7 @@
           .eq('subdomain', subdomain)
           .single();
         
-        if (error) throw error;
+        if (error || !data) throw error || new Error('Store not found');
         
         document.getElementById('dynamic-store-title').textContent = data.store_title || data.name;
         document.getElementById('dynamic-store-description').textContent = data.description || 'Welcome to my store!';
@@ -883,6 +895,8 @@
         const storeView = document.getElementById('store-view');
         if (data.background_image) {
           storeView.style.backgroundImage = `url(${data.background_image})`;
+          storeView.style.backgroundSize = 'cover';
+          storeView.style.backgroundPosition = 'center';
         } else {
           storeView.style.background = 'var(--bg)';
         }
@@ -902,8 +916,12 @@
     }
 
     function updatePreviewUrl() {
-      const domain = subdomainInput.value || storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yourstore';
-      previewUrl.textContent = `${domain}.site4you.store`;
+      const domain = (subdomainInput.value || storeName.value || 'yourstore')
+        .toString()
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '')
+        .slice(0, 63);
+      previewUrl.textContent = `${domain || 'yourstore'}.site4you.store`;
     }
 
     // === MAIN INIT ===
@@ -912,19 +930,27 @@
       const mainDomain = 'site4you.store';
       
       // Public store view (subdomain) - no login required
-      if (hostname !== mainDomain && hostname !== 'www.' + mainDomain) {
+      if (hostname !== mainDomain && hostname !== 'www.' + mainDomain && hostname !== 'localhost') {
         const subdomain = hostname.split('.')[0];
-        displayStoreView(subdomain);
-        return;
+        if (subdomain) {
+          displayStoreView(subdomain);
+          return;
+        }
       }
       
       // Main domain: show marketplace first (no login required)
       loadStoresForMarketplace();
       
       // Add event listener to "Create Your Store" button
-      document.getElementById('create-store-btn').addEventListener('click', () => {
-        authScreen.style.display = 'block';
-        mainApp.style.display = 'none';
+      document.getElementById('create-store-btn').addEventListener('click', async () => {
+        const user = await checkUser();
+        if (user) {
+          // jeśli zalogowany -> otwórz modal tworzenia
+          document.getElementById('create-modal').classList.add('active');
+        } else {
+          authScreen.style.display = 'block';
+          mainApp.style.display = 'none';
+        }
       });
       
       // Auth form toggle
@@ -960,9 +986,19 @@
       [storeName, subdomainInput].forEach(el => {
         el.addEventListener('input', updatePreviewUrl);
       });
+      updatePreviewUrl();
       
       uploadArea.addEventListener('click', () => {
         imageUpload.click();
+      });
+      
+      imageUpload.addEventListener('change', () => {
+        const txtEl = uploadArea.querySelector('.upload-text');
+        if (imageUpload.files.length > 0) {
+          if (txtEl) txtEl.textContent = imageUpload.files[0].name;
+        } else {
+          if (txtEl) txtEl.textContent = 'Recommended: 1920x1080px';
+        }
       });
       
       // Footer links
@@ -978,81 +1014,92 @@
       
       if (isOwner) {
         // Add "Create Store" button only for owners (already added in HTML)
-        createFinalBtn.addEventListener('click', async () => {
-          const user = await supabase.auth.getUser();
-          if (!user.data.user) {
-            alert('You must be logged in to create a store.');
-            return;
-          }
-          
-          const name = storeName.value.trim();
-          if (!name) {
-            alert('Please enter your store name');
-            return;
-          }
-          
-          let domain = subdomainInput.value.trim();
-          if (!domain) {
-            domain = storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '');
-          }
-          if (!domain || domain.length < 3) {
-            domain = 'store' + Date.now().toString().slice(-6);
-          }
-          
-          const title = storeTitle.value.trim() || name;
-          const description = storeDesc.value.trim() || `Welcome to ${name}!`;
-          
-          // Check if subdomain is available
-          const {  existing, error: checkError } = await supabase
-            .from('stores')
-            .select('id')
-            .eq('subdomain', domain)
-            .limit(1);
-          
-          if (checkError) {
-            alert('Error checking subdomain: ' + checkError.message);
-            return;
-          }
-          if (existing.length > 0) {
-            alert('Subdomain already taken. Please choose another.');
-            return;
-          }
-          
-          showLoading(true);
-          
-          try {
-            let imageUrl = null;
-            if (imageUpload.files.length > 0) {
-              imageUrl = await uploadImage(imageUpload.files[0], user.data.user.id);
+        // Uwaga: upewnij się, że listener nie dodaje się wielokrotnie
+        if (!createFinalBtn._hasListener) {
+          createFinalBtn.addEventListener('click', async () => {
+            const { data } = await supabase.auth.getUser();
+            const user = data?.user ?? null;
+            if (!user) {
+              alert('You must be logged in to create a store.');
+              return;
             }
             
-            const { error } = await supabase
-              .from('stores')
-              .insert([
-                {
-                  user_id: user.data.user.id,
-                  name,
-                  subdomain: domain,
-                  store_title: title,
-                  description,
-                  background_image: imageUrl
-                }
-              ]);
+            const name = storeName.value.trim();
+            if (!name) {
+              alert('Please enter your store name');
+              return;
+            }
             
-            if (error) throw error;
+            let domain = subdomainInput.value.trim();
+            if (!domain) {
+              domain = storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '');
+            }
+            domain = domain.toLowerCase().replace(/[^a-z0-9\-]/g, '').slice(0, 63);
+            if (!domain || domain.length < 3) {
+              domain = 'store' + Date.now().toString().slice(-6);
+            }
             
-            const fullUrl = `https://${domain}.site4you.store`;
-            alert(`🎉 Your store "${name}" has been created!\n\nYour store is live at:\n${fullUrl}`);
-            document.getElementById('create-modal').classList.remove('active');
-            loadStoresForMarketplace();
+            const title = storeTitle.value.trim() || name;
+            const description = storeDesc.value.trim() || `Welcome to ${name}!`;
             
-          } catch (error) {
-            console.error('Error:', error);
-            alert('❌ Error: ' + (error.message || 'Failed to create store'));
-          } finally {
-            showLoading(false);
-          }
-        });
+            // Check if subdomain is available
+            try {
+              const { data: existing, error: checkError } = await supabase
+                .from('stores')
+                .select('id')
+                .eq('subdomain', domain)
+                .limit(1);
+              
+              if (checkError) {
+                alert('Error checking subdomain: ' + checkError.message);
+                return;
+              }
+              if (existing && existing.length > 0) {
+                alert('Subdomain already taken. Please choose another.');
+                return;
+              }
+            } catch (err) {
+              alert('Error checking subdomain: ' + (err.message || err));
+              return;
+            }
+            
+            showLoading(true);
+            
+            try {
+              let imageUrl = null;
+              if (imageUpload.files.length > 0) {
+                imageUrl = await uploadImage(imageUpload.files[0], user.id);
+              }
+              
+              const { error } = await supabase
+                .from('stores')
+                .insert([
+                  {
+                    user_id: user.id,
+                    name,
+                    subdomain: domain,
+                    store_title: title,
+                    description,
+                    background_image: imageUrl
+                  }
+                ]);
+              
+              if (error) throw error;
+              
+              const fullUrl = `https://${domain}.site4you.store`;
+              alert(`🎉 Your store "${name}" has been created!\n\nYour store is live at:\n${fullUrl}`);
+              document.getElementById('create-modal').classList.remove('active');
+              loadStoresForMarketplace();
+              
+            } catch (error) {
+              console.error('Error:', error);
+              alert('❌ Error: ' + (error.message || 'Failed to create store'));
+            } finally {
+              showLoading(false);
+            }
+          });
+          createFinalBtn._hasListener = true;
+        }
       }
       
       loadStoresForMarketplace();
