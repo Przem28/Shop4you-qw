@@ -607,7 +607,11 @@
           <input type="text" class="search-input" id="search-input" placeholder="Search stores or products...">
         </div>
       </div>
-      <!-- Przycisk "Create Your Store" będzie dodany dynamicznie dla właścicieli -->
+      
+      <!-- Przycisk "Create Your Store" - widoczny zawsze -->
+      <button class="create-btn" id="create-store-btn">
+        <i class="fas fa-plus"></i> Create Your Store
+      </button>
     </section>
 
     <section class="section">
@@ -781,6 +785,15 @@
       }
       
       alert('Check your email for a magic link to sign in!');
+      
+      // Po wysłaniu magic linka, pokaż wybór roli (jeśli użytkownik się zaloguje)
+      // To będzie działało po odświeżeniu strony po kliknięciu linku
+      setTimeout(() => {
+        const user = checkUser();
+        if (user) {
+          showRoleSelect();
+        }
+      }, 5000); // Sprawdź po 5 sekundach
     }
 
     // === STORE FUNCTIONS ===
@@ -908,6 +921,12 @@
       // Main domain: show marketplace first (no login required)
       loadStoresForMarketplace();
       
+      // Add event listener to "Create Your Store" button
+      document.getElementById('create-store-btn').addEventListener('click', () => {
+        authScreen.style.display = 'block';
+        mainApp.style.display = 'none';
+      });
+      
       // Auth form toggle
       toggleAuth.addEventListener('click', () => {
         const isSignup = authTitle.textContent.includes('Log in');
@@ -958,94 +977,82 @@
       mainApp.style.display = 'block';
       
       if (isOwner) {
-        // Add "Create Store" button only for owners
-        const hero = document.querySelector('.hero');
-        if (!document.getElementById('create-store-btn')) {
-          const createBtn = document.createElement('button');
-          createBtn.className = 'create-btn';
-          createBtn.id = 'create-store-btn';
-          createBtn.innerHTML = '<i class="fas fa-plus"></i> Create Your Store';
-          hero.appendChild(createBtn);
-          createBtn.addEventListener('click', () => {
-            document.getElementById('create-modal').classList.add('active');
-          });
+        // Add "Create Store" button only for owners (already added in HTML)
+        createFinalBtn.addEventListener('click', async () => {
+          const user = await supabase.auth.getUser();
+          if (!user.data.user) {
+            alert('You must be logged in to create a store.');
+            return;
+          }
           
-          createFinalBtn.addEventListener('click', async () => {
-            const user = await supabase.auth.getUser();
-            if (!user.data.user) {
-              alert('You must be logged in to create a store.');
-              return;
+          const name = storeName.value.trim();
+          if (!name) {
+            alert('Please enter your store name');
+            return;
+          }
+          
+          let domain = subdomainInput.value.trim();
+          if (!domain) {
+            domain = storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '');
+          }
+          if (!domain || domain.length < 3) {
+            domain = 'store' + Date.now().toString().slice(-6);
+          }
+          
+          const title = storeTitle.value.trim() || name;
+          const description = storeDesc.value.trim() || `Welcome to ${name}!`;
+          
+          // Check if subdomain is available
+          const {  existing, error: checkError } = await supabase
+            .from('stores')
+            .select('id')
+            .eq('subdomain', domain)
+            .limit(1);
+          
+          if (checkError) {
+            alert('Error checking subdomain: ' + checkError.message);
+            return;
+          }
+          if (existing.length > 0) {
+            alert('Subdomain already taken. Please choose another.');
+            return;
+          }
+          
+          showLoading(true);
+          
+          try {
+            let imageUrl = null;
+            if (imageUpload.files.length > 0) {
+              imageUrl = await uploadImage(imageUpload.files[0], user.data.user.id);
             }
             
-            const name = storeName.value.trim();
-            if (!name) {
-              alert('Please enter your store name');
-              return;
-            }
-            
-            let domain = subdomainInput.value.trim();
-            if (!domain) {
-              domain = storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '');
-            }
-            if (!domain || domain.length < 3) {
-              domain = 'store' + Date.now().toString().slice(-6);
-            }
-            
-            const title = storeTitle.value.trim() || name;
-            const description = storeDesc.value.trim() || `Welcome to ${name}!`;
-            
-            // Check if subdomain is available
-            const {  existing, error: checkError } = await supabase
+            const { error } = await supabase
               .from('stores')
-              .select('id')
-              .eq('subdomain', domain)
-              .limit(1);
+              .insert([
+                {
+                  user_id: user.data.user.id,
+                  name,
+                  subdomain: domain,
+                  store_title: title,
+                  description,
+                  background_image: imageUrl
+                }
+              ]);
             
-            if (checkError) {
-              alert('Error checking subdomain: ' + checkError.message);
-              return;
-            }
-            if (existing.length > 0) {
-              alert('Subdomain already taken. Please choose another.');
-              return;
-            }
+            if (error) throw error;
             
-            showLoading(true);
+            const fullUrl = `https://${domain}.site4you.store`;
+            alert(`🎉 Your store "${name}" has been created!\n\nYour store is live at:\n${fullUrl}`);
+            document.getElementById('create-modal').classList.remove('active');
+            loadStoresForMarketplace();
             
-            try {
-              let imageUrl = null;
-              if (imageUpload.files.length > 0) {
-                imageUrl = await uploadImage(imageUpload.files[0], user.data.user.id);
-              }
-              
-              const { error } = await supabase
-                .from('stores')
-                .insert([
-                  {
-                    user_id: user.data.user.id,
-                    name,
-                    subdomain: domain,
-                    store_title: title,
-                    description,
-                    background_image: imageUrl
-                  }
-                ]);
-              
-              if (error) throw error;
-              
-              const fullUrl = `https://${domain}.site4you.store`;
-              alert(`🎉 Your store "${name}" has been created!\n\nYour store is live at:\n${fullUrl}`);
-              document.getElementById('create-modal').classList.remove('active');
-              loadStoresForMarketplace();
-              
-            } catch (error) {
-              console.error('Error:', error);
-              alert('❌ Error: ' + (error.message || 'Failed to create store'));
-            } finally {
-              showLoading(false);
-            }
-          });
-        }
+          } catch (error) {
+            console.error('Error:', error);
+            alert('❌ Error: ' + (error.message || 'Failed to create store'));
+          } finally {
+            showLoading(false);
+          }
+        });
       }
       
       loadStoresForMarketplace();
