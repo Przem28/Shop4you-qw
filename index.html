@@ -44,7 +44,7 @@
 
     header {
       padding: 20px 0;
-      text-align: center;
+      text: center;
     }
 
     .logo {
@@ -498,6 +498,72 @@
       display: inline-block;
     }
 
+    /* Auth Screen */
+    #auth-screen {
+      display: none;
+      min-height: 100vh;
+      background: var(--bg);
+      padding: 40px 20px;
+    }
+    .auth-container {
+      max-width: 400px;
+      margin: 100px auto;
+      background: var(--bg-light);
+      padding: 30px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+    .auth-title {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 20px;
+      color: white;
+    }
+    .auth-input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      background: rgba(0,0,0,0.2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: white;
+    }
+    .auth-btn {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .auth-toggle {
+      display: block;
+      text-align: center;
+      margin-top: 15px;
+      color: #60a5fa;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .role-select {
+      display: none;
+      text-align: center;
+      margin-top: 30px;
+    }
+    .role-btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .owner-btn { background: linear-gradient(90deg, var(--accent), #06b6d4); color: white; }
+    .customer-btn { background: rgba(255,255,255,0.1); color: white; }
+
     /* IMPORTANT: Hide store view by default */
     #store-view {
       display: none;
@@ -505,7 +571,27 @@
   </style>
 </head>
 <body>
-  <div id="main-app" class="container">
+  <!-- Ekran logowania -->
+  <div id="auth-screen">
+    <div class="auth-container">
+      <h2 class="auth-title" id="auth-title">Zaloguj się</h2>
+      <input type="email" id="login-email" class="auth-input" placeholder="Email" />
+      <input type="password" id="login-password" class="auth-input" placeholder="Hasło" />
+      <button class="auth-btn" id="login-btn">Zaloguj się</button>
+      <button class="auth-btn" id="signup-btn" style="background: var(--success);">Zarejestruj się</button>
+      <span class="auth-toggle" id="toggle-auth">Nie masz konta? Zarejestruj się</span>
+      
+      <!-- Wybór roli po zalogowaniu -->
+      <div class="role-select" id="role-select">
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">Wybierz, jak chcesz korzystać z platformy:</p>
+        <button class="role-btn owner-btn" id="owner-btn">✅ Chcę prowadzić sklep</button>
+        <button class="role-btn customer-btn" id="customer-btn">🛒 Przeglądam sklepy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Główne UI -->
+  <div id="main-app" class="container" style="display: none;">
     <header>
       <div class="logo">Site4You</div>
     </header>
@@ -523,10 +609,7 @@
           <input type="text" class="search-input" id="search-input" placeholder="Search stores or products...">
         </div>
       </div>
-      
-      <button class="create-btn" id="create-store-btn">
-        <i class="fas fa-plus"></i> Create Your Store
-      </button>
+      <!-- Przycisk "Create Your Store" będzie dodany dynamicznie dla właścicieli -->
     </section>
 
     <section class="section">
@@ -580,7 +663,7 @@
         <a href="mailto:support@site4you.store" class="footer-link">Contact</a>
       </div>
       
-      <p class="copyright">© 2024 Site4You. All rights reserved.</p>
+      <p class="copyright">© 2025 Site4You. All rights reserved.</p>
     </footer>
   </div>
 
@@ -645,191 +728,273 @@
   </div>
 
   <script>
+    // === SUPABASE CONFIGURATION ===
+    const supabaseUrl = 'https://djbspbwohmdkxqtxhdcx.supabase.co';
+    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqYnNwYndvaG1ka3hxdHhoZGN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIzNjM0MzIsImV4cCI6MjA3NzkzOTQzMn0.6PHmss7cJCrVeHaFiYQmYzLudDJ7bc7dY_f2lvEBH2c';
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+
+    // DOM Elements
+    const authScreen = document.getElementById('auth-screen');
+    const mainApp = document.getElementById('main-app');
+    const loginEmail = document.getElementById('login-email');
+    const loginPassword = document.getElementById('login-password');
+    const loginBtn = document.getElementById('login-btn');
+    const signupBtn = document.getElementById('signup-btn');
+    const toggleAuth = document.getElementById('toggle-auth');
+    const authTitle = document.getElementById('auth-title');
+    const roleSelect = document.getElementById('role-select');
+    const ownerBtn = document.getElementById('owner-btn');
+    const customerBtn = document.getElementById('customer-btn');
+    const storesContainer = document.getElementById('stores-container');
+    const searchInput = document.getElementById('search-input');
+    const closeModal = document.getElementById('close-modal');
+    const storeName = document.getElementById('store-name');
+    const subdomainInput = document.getElementById('subdomain');
+    const storeTitle = document.getElementById('store-title');
+    const storeDesc = document.getElementById('store-desc');
+    const uploadArea = document.getElementById('upload-area');
+    const imageUpload = document.getElementById('image-upload');
+    const previewUrl = document.getElementById('preview-url');
+    const createFinalBtn = document.getElementById('create-final-btn');
+    const createBtnText = document.getElementById('create-btn-text');
+    const createBtnLoader = document.getElementById('create-btn-loader');
+
+    // === AUTH FUNCTIONS ===
+    async function checkUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user;
+    }
+
+    async function handleLogin() {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: loginEmail.value,
+        password: loginPassword.value,
+      });
+      if (error) {
+        alert('Login failed: ' + error.message);
+        return;
+      }
+      showRoleSelect();
+    }
+
+    async function handleSignup() {
+      const { data, error } = await supabase.auth.signUp({
+        email: loginEmail.value,
+        password: loginPassword.value,
+        options: { emailRedirectTo: window.location.origin }
+      });
+      if (error) {
+        alert('Signup failed: ' + error.message);
+        return;
+      }
+      alert('Account created! Please check your email to confirm.');
+    }
+
+    function showRoleSelect() {
+      authTitle.textContent = 'Choose your role';
+      loginBtn.style.display = 'none';
+      signupBtn.style.display = 'none';
+      toggleAuth.style.display = 'none';
+      roleSelect.style.display = 'block';
+    }
+
+    function showMainApp(isOwner) {
+      authScreen.style.display = 'none';
+      mainApp.style.display = 'block';
+      
+      if (isOwner) {
+        // Add "Create Store" button only for owners
+        const hero = document.querySelector('.hero');
+        if (!document.getElementById('create-store-btn')) {
+          const createBtn = document.createElement('button');
+          createBtn.className = 'create-btn';
+          createBtn.id = 'create-store-btn';
+          createBtn.innerHTML = '<i class="fas fa-plus"></i> Create Your Store';
+          hero.appendChild(createBtn);
+          createBtn.addEventListener('click', () => {
+            document.getElementById('create-modal').classList.add('active');
+          });
+        }
+      }
+      
+      loadStoresForMarketplace();
+    }
+
+    // === STORE FUNCTIONS ===
+    async function loadStoresForMarketplace() {
+      try {
+        const { data, error } = await supabase
+          .from('stores')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        renderStores(data || []);
+      } catch (error) {
+        console.error('Error loading stores:', error);
+        renderStores([]);
+      }
+    }
+
+    function renderStores(storesToShow) {
+      storesContainer.innerHTML = '';
+      if (storesToShow.length === 0) {
+        storesContainer.innerHTML = '<div style="text-align: center; color: #94a3b8; grid-column: 1 / -1; padding: 40px 0;">No stores found. Be the first to create one!</div>';
+        return;
+      }
+      
+      storesToShow.forEach(store => {
+        const fullUrl = `https://${store.subdomain}.site4you.store`;
+        const card = document.createElement('div');
+        card.className = 'store-card';
+        card.innerHTML = `
+          <img src="${store.background_image || 'https://placehold.co/400x200/1e293b/60a5fa?text=SITE4YOU'}" alt="${store.name}" class="store-image" onerror="this.src='https://placehold.co/400x200/1e293b/60a5fa?text=SITE4YOU'">
+          <div class="store-content">
+            <h3 class="store-name">${store.name}</h3>
+            <p class="store-desc">${store.description || 'Welcome to my store!'}</p>
+            <div class="store-footer">
+              <span class="store-domain">${store.subdomain}.site4you.store</span>
+              <a href="${fullUrl}" class="visit-link">
+                Visit <i class="fas fa-arrow-right"></i>
+              </a>
+            </div>
+          </div>
+        `;
+        storesContainer.appendChild(card);
+      });
+    }
+
+    async function uploadImage(file, userId) {
+      if (!file || !userId) return null;
+      const fileName = `${userId}/${Date.now()}_${file.name}`;
+      
+      const { data, error } = await supabase.storage
+        .from('store-backgrounds')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+      
+      if (error) throw error;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('store-backgrounds')
+        .getPublicUrl(fileName);
+      
+      return publicUrl;
+    }
+
+    function displayStoreView(subdomain) {
+      mainApp.style.display = 'none';
+      document.getElementById('store-view').style.display = 'flex';
+      
+      loadStoreBySubdomain(subdomain);
+    }
+
+    async function loadStoreBySubdomain(subdomain) {
+      try {
+        const { data, error } = await supabase
+          .from('stores')
+          .select('*')
+          .eq('subdomain', subdomain)
+          .single();
+        
+        if (error) throw error;
+        
+        document.getElementById('dynamic-store-title').textContent = data.store_title || data.name;
+        document.getElementById('dynamic-store-description').textContent = data.description || 'Welcome to my store!';
+        
+        const storeView = document.getElementById('store-view');
+        if (data.background_image) {
+          storeView.style.backgroundImage = `url(${data.background_image})`;
+        } else {
+          storeView.style.background = 'var(--bg)';
+        }
+        
+      } catch (error) {
+        console.error('Store not found:', error);
+        document.getElementById('dynamic-store-title').textContent = 'Store Not Found';
+        document.getElementById('dynamic-store-description').textContent = 'The store you are looking for does not exist.';
+        document.getElementById('store-view').style.background = 'var(--bg)';
+      }
+    }
+
+    function showLoading(show) {
+      createBtnText.style.display = show ? 'none' : 'inline';
+      createBtnLoader.style.display = show ? 'inline-block' : 'none';
+      createFinalBtn.disabled = show;
+    }
+
+    function updatePreviewUrl() {
+      const domain = subdomainInput.value || storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yourstore';
+      previewUrl.textContent = `${domain}.site4you.store`;
+    }
+
+    // === MAIN INIT ===
     document.addEventListener('DOMContentLoaded', async () => {
       const hostname = window.location.hostname;
       const mainDomain = 'site4you.store';
       
-      // === POPRAWNE SUPABASE CONFIGURATION ===
-      const supabaseUrl = 'https://djbspbwohmdkxqtxhdcx.supabase.co';
-      const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqYnNwYndvaG1ka3hxdHhoZGN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIzNjM0MzIsImV4cCI6MjA3NzkzOTQzMn0.6PHmss7cJCrVeHaFiYQmYzLudDJ7bc7dY_f2lvEBH2c';
-      
-      if (!window.supabase) {
-        console.error('Supabase SDK not loaded!');
-        return;
-      }
-      
-      const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
-
-      // === FUNKCJE DLA SUBDOMENY – MUSZĄ BYĆ TU ===
-      async function loadStoreBySubdomain(subdomain) {
-        try {
-          const { data, error } = await supabase
-            .from('stores')
-            .select('*')
-            .eq('subdomain', subdomain)
-            .single();
-          
-          if (error) throw error;
-          
-          document.getElementById('dynamic-store-title').textContent = data.store_title || data.name;
-          document.getElementById('dynamic-store-description').textContent = data.description || 'Welcome to my store!';
-          
-          const storeView = document.getElementById('store-view');
-          if (data.background_image) {
-            storeView.style.backgroundImage = `url(${data.background_image})`;
-          } else {
-            storeView.style.background = 'var(--bg)';
-          }
-        } catch (error) {
-          console.error('Store not found:', error);
-          document.getElementById('dynamic-store-title').textContent = 'Store Not Found';
-          document.getElementById('dynamic-store-description').textContent = 'The store you are looking for does not exist.';
-          document.getElementById('store-view').style.background = 'var(--bg)';
-        }
-      }
-
-      function displayStoreView(subdomain) {
-        document.getElementById('main-app').style.display = 'none';
-        document.getElementById('store-view').style.display = 'flex';
-        loadStoreBySubdomain(subdomain);
-      }
-
-      // === JEŚLI TO SUBDOMENA – POKAŻ SKLEP I WYJDŹ ===
+      // Public store view (subdomain) - no login required
       if (hostname !== mainDomain && hostname !== 'www.' + mainDomain) {
         const subdomain = hostname.split('.')[0];
         displayStoreView(subdomain);
         return;
       }
-
-      // === RESZTA KODU DLA STRONY GŁÓWNEJ (marketplace) ===
-      const storesContainer = document.getElementById('stores-container');
-      const searchInput = document.getElementById('search-input');
-      const createBtn = document.getElementById('create-store-btn');
-      const modal = document.getElementById('create-modal');
-      const closeModal = document.getElementById('close-modal');
-      const storeName = document.getElementById('store-name');
-      const subdomainInput = document.getElementById('subdomain');
-      const storeTitle = document.getElementById('store-title');
-      const storeDesc = document.getElementById('store-desc');
-      const uploadArea = document.getElementById('upload-area');
-      const imageUpload = document.getElementById('image-upload');
-      const previewUrl = document.getElementById('preview-url');
-      const createFinalBtn = document.getElementById('create-final-btn');
-      const createBtnText = document.getElementById('create-btn-text');
-      const createBtnLoader = document.getElementById('create-btn-loader');
-
-      async function loadStores() {
-        try {
-          const { data, error } = await supabase
-            .from('stores')
-            .select('*')
-            .order('created_at', { ascending: false });
-          
-          if (error) throw error;
-          renderStores(data || []);
-        } catch (error) {
-          console.error('Error loading stores:', error);
-          renderStores([]);
-        }
+      
+      // Main domain: require login
+      const user = await checkUser();
+      if (user) {
+        authScreen.style.display = 'block';
+        showRoleSelect();
+      } else {
+        authScreen.style.display = 'block';
       }
-
-      async function uploadImage(file) {
-        if (!file) return null;
-        const fileName = `${Date.now()}_${file.name}`;
-        
-        const { data, error } = await supabase.storage
-          .from('store-backgrounds')
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
-        
-        if (error) throw error;
-        
-        const { publicUrl } = supabase.storage
-          .from('store-backgrounds')
-          .getPublicUrl(fileName);
-        
-        return publicUrl.publicUrl;
-      }
-
-      function renderStores(storesToShow) {
-        storesContainer.innerHTML = '';
-        if (storesToShow.length === 0) {
-          storesContainer.innerHTML = '<div style="text-align: center; color: #94a3b8; grid-column: 1 / -1; padding: 40px 0;">No stores found. Be the first to create one!</div>';
-          return;
-        }
-        
-        storesToShow.forEach(store => {
-          const fullUrl = `https://${store.subdomain}.site4you.store`;
-          const card = document.createElement('div');
-          card.className = 'store-card';
-          card.innerHTML = `
-            <img src="${store.background_image || 'https://placehold.co/400x200/1e293b/60a5fa?text=SITE4YOU'}" alt="${store.name}" class="store-image" onerror="this.src='https://placehold.co/400x200/1e293b/60a5fa?text=SITE4YOU'">
-            <div class="store-content">
-              <h3 class="store-name">${store.name}</h3>
-              <p class="store-desc">${store.description || 'Welcome to my store!'}</p>
-              <div class="store-footer">
-                <span class="store-domain">${store.subdomain}.site4you.store</span>
-                <a href="${fullUrl}" class="visit-link">
-                  Visit <i class="fas fa-arrow-right"></i>
-                </a>
-              </div>
-            </div>
-          `;
-          storesContainer.appendChild(card);
-        });
-      }
-
-      function showLoading(show) {
-        createBtnText.style.display = show ? 'none' : 'inline';
-        createBtnLoader.style.display = show ? 'inline-block' : 'none';
-        createFinalBtn.disabled = show;
-      }
-
-      function updatePreviewUrl() {
-        let domain = subdomainInput.value.trim();
-        if (!domain) {
-          domain = storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '') || 'yourstore';
-        }
-        previewUrl.textContent = `${domain}.site4you.store`;
-      }
-
-      createBtn.addEventListener('click', () => {
-        modal.classList.add('active');
-        storeName.value = '';
-        subdomainInput.value = '';
-        storeTitle.value = '';
-        storeDesc.value = '';
-        uploadArea.innerHTML = `
-          <i class="fas fa-cloud-upload-alt" style="font-size: 32px; color: #60a5fa;"></i>
-          <div style="margin-top: 10px; font-weight: 600;">Click to upload</div>
-          <div class="upload-text">Recommended: 1920x1080px</div>
-          <input type="file" id="image-upload" accept="image/*" style="display: none;">
-        `;
-        document.getElementById('image-upload').addEventListener('change', () => {});
-        updatePreviewUrl();
+      
+      // Auth form toggle
+      let isLoginMode = true;
+      toggleAuth.addEventListener('click', () => {
+        isLoginMode = !isLoginMode;
+        authTitle.textContent = isLoginMode ? 'Log in' : 'Sign up';
+        loginBtn.style.display = isLoginMode ? 'block' : 'none';
+        signupBtn.style.display = isLoginMode ? 'none' : 'block';
+        toggleAuth.textContent = isLoginMode ? 'Don\'t have an account? Sign up' : 'Already have an account? Log in';
+        roleSelect.style.display = 'none';
       });
-
-      uploadArea.addEventListener('click', () => {
-        imageUpload.click();
+      
+      loginBtn.addEventListener('click', handleLogin);
+      signupBtn.addEventListener('click', handleSignup);
+      
+      ownerBtn.addEventListener('click', () => showMainApp(true));
+      customerBtn.addEventListener('click', () => showMainApp(false));
+      
+      // Modal close
+      closeModal.addEventListener('click', () => {
+        document.getElementById('create-modal').classList.remove('active');
       });
-
+      
+      document.getElementById('create-modal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('create-modal')) {
+          document.getElementById('create-modal').classList.remove('active');
+        }
+      });
+      
+      // Create store form
       [storeName, subdomainInput].forEach(el => {
         el.addEventListener('input', updatePreviewUrl);
       });
-
-      closeModal.addEventListener('click', () => {
-        modal.classList.remove('active');
+      
+      uploadArea.addEventListener('click', () => {
+        imageUpload.click();
       });
-
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-          modal.classList.remove('active');
-        }
-      });
-
+      
       createFinalBtn.addEventListener('click', async () => {
+        const user = await supabase.auth.getUser();
+        if (!user.data.user) {
+          alert('You must be logged in to create a store.');
+          return;
+        }
+        
         const name = storeName.value.trim();
         if (!name) {
           alert('Please enter your store name');
@@ -847,34 +1012,49 @@
         const title = storeTitle.value.trim() || name;
         const description = storeDesc.value.trim() || `Welcome to ${name}!`;
         
+        // Check if subdomain is available
+        const { data: existing, error: checkError } = await supabase
+          .from('stores')
+          .select('id')
+          .eq('subdomain', domain)
+          .limit(1);
+        
+        if (checkError) {
+          alert('Error checking subdomain: ' + checkError.message);
+          return;
+        }
+        if (existing.length > 0) {
+          alert('Subdomain already taken. Please choose another.');
+          return;
+        }
+        
         showLoading(true);
         
         try {
           let imageUrl = null;
           if (imageUpload.files.length > 0) {
-            imageUrl = await uploadImage(imageUpload.files[0]);
+            imageUrl = await uploadImage(imageUpload.files[0], user.data.user.id);
           }
           
-          const { data, error } = await supabase
+          const { error } = await supabase
             .from('stores')
             .insert([
               {
-                user_id: '00000000-0000-0000-0000-000000000000',
-                name: name,
+                user_id: user.data.user.id,
+                name,
                 subdomain: domain,
                 store_title: title,
-                description: description,
+                description,
                 background_image: imageUrl
               }
-            ])
-            .select();
+            ]);
           
           if (error) throw error;
           
           const fullUrl = `https://${domain}.site4you.store`;
           alert(`🎉 Your store "${name}" has been created!\n\nYour store is live at:\n${fullUrl}`);
-          modal.classList.remove('active');
-          loadStores();
+          document.getElementById('create-modal').classList.remove('active');
+          loadStoresForMarketplace();
           
         } catch (error) {
           console.error('Error:', error);
@@ -883,11 +1063,12 @@
           showLoading(false);
         }
       });
-
+      
+      // Search
       searchInput.addEventListener('input', async (e) => {
         const query = e.target.value.toLowerCase();
         if (!query) {
-          loadStores();
+          loadStoresForMarketplace();
           return;
         }
         
@@ -900,14 +1081,12 @@
           renderStores(data || []);
         }
       });
-
+      
+      // Footer links
       document.getElementById('terms-link').addEventListener('click', (e) => { e.preventDefault(); alert('Terms of Service\n\nDemo version.'); });
       document.getElementById('privacy-link').addEventListener('click', (e) => { e.preventDefault(); alert('Privacy Policy\n\nDemo version.'); });
       document.getElementById('help-link').addEventListener('click', (e) => { e.preventDefault(); alert('Help Center\n\n1. Create store\n2. Add details\n3. Connect Stripe\n4. Start selling!'); });
-
-      loadStores();
     });
   </script>
 </body>
 </html>
-
