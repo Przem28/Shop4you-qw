@@ -593,6 +593,26 @@
     <header>
       <div class="logo">Site4You</div>
     </header>
+<div id="user-panel" style="
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  display: none;
+  color: var(--text);
+  cursor: pointer;
+  z-index: 999;
+">
+  <div id="user-email"></div>
+  <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+    Click to log out
+  </div>
+</div>
+
 
     <section class="hero">
       <h1>Create Your Own Online Store</h1>
@@ -1104,6 +1124,30 @@
       
       loadStoresForMarketplace();
     }
-  </script>
+  
+// =================== USER PANEL LOGIN STATUS ===================
+const userPanel = document.getElementById("user-panel");
+const userEmailBox = document.getElementById("user-email");
+
+async function refreshUserPanel() {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (user) {
+    userEmailBox.textContent = "Logged in as: " + user.email;
+    userPanel.style.display = "block";
+  } else {
+    userPanel.style.display = "none";
+  }
+}
+
+userPanel.addEventListener("click", async () => {
+  await supabase.auth.signOut();
+  location.reload();
+});
+
+refreshUserPanel();
+// ================================================================
+
+</script>
 </body>
 </html>
