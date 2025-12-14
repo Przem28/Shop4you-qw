@@ -593,26 +593,6 @@
     <header>
       <div class="logo">Site4You</div>
     </header>
-<div id="user-panel" style="
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  background: var(--bg-light);
-  border: 1px solid var(--border);
-  padding: 10px 16px;
-  border-radius: 12px;
-  font-size: 14px;
-  display: none;
-  color: var(--text);
-  cursor: pointer;
-  z-index: 999;
-">
-  <div id="user-email"></div>
-  <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
-    Click to log out
-  </div>
-</div>
-
 
     <section class="hero">
       <h1>Create Your Own Online Store</h1>
@@ -1125,42 +1105,76 @@
       loadStoresForMarketplace();
     }
   
-// =================== USER PANEL LOGIN STATUS ===================
-const userPanel = document.getElementById("user-panel");
-const userEmailBox = document.getElementById("user-email");
+// ================= CREATE STORE FINAL FIX =================
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById('create-final-btn');
+  if (!btn) return;
 
-async function refreshUserPanel() {
-  const { data: { user } } = await supabase.auth.getUser();
+  btn.onclick = async () => {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+      alert('You must be logged in to create a store.');
+      return;
+    }
 
-  if (user) {
-    userEmailBox.textContent = "Logged in as: " + user.email;
-    userPanel.style.display = "block";
-  } else {
-    userPanel.style.display = "none";
-  }
-}
+    const name = storeName.value.trim();
+    if (!name) {
+      alert('Please enter your store name');
+      return;
+    }
 
-userPanel.addEventListener("click", async () => {
-  await supabase.auth.signOut();
-  location.reload();
+    let domain = subdomainInput.value.trim().toLowerCase();
+    if (!domain) domain = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    if (domain.length < 3) {
+      alert('Subdomain too short');
+      return;
+    }
+
+    showLoading(true);
+
+    try {
+      let imageUrl = null;
+      if (imageUpload.files.length > 0) {
+        imageUrl = await uploadImage(imageUpload.files[0], user.id);
+      }
+
+      const { data: existing } = await supabase
+        .from('stores')
+        .select('id')
+        .eq('subdomain', domain)
+        .maybeSingle();
+
+      if (existing) {
+        alert('Subdomain already taken');
+        showLoading(false);
+        return;
+      }
+
+      const { error: insertError } = await supabase.from('stores').insert([{
+        user_id: user.id,
+        name,
+        subdomain: domain,
+        store_title: storeTitle.value.trim() || name,
+        description: storeDesc.value.trim() || '',
+        background_image: imageUrl
+      }]);
+
+      if (insertError) throw insertError;
+
+      alert('Store created');
+      document.getElementById('create-modal').classList.remove('active');
+      loadStoresForMarketplace();
+
+    } catch (e) {
+      console.error(e);
+      alert(e.message);
+    } finally {
+      showLoading(false);
+    }
+  };
 });
-
-refreshUserPanel();
-// ================================================================
-// === CREATE STORE BUTTON FIX ===
-document.getElementById("create-store-btn").addEventListener("click", async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    // nie zalogowany → ekran logowania
-    document.getElementById("auth-screen").style.display = "block";
-    document.getElementById("main-app").style.display = "none";
-    return;
-  }
-
-  // zalogowany → otwórz modal tworzenia sklepu
-  document.getElementById("create-modal").classList.add("active");
-});
+// ==========================================================
 
 </script>
 </body>
