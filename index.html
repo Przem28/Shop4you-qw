@@ -1147,6 +1147,20 @@ userPanel.addEventListener("click", async () => {
 
 refreshUserPanel();
 // ================================================================
+// === CREATE STORE BUTTON FIX ===
+document.getElementById("create-store-btn").addEventListener("click", async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    // nie zalogowany → ekran logowania
+    document.getElementById("auth-screen").style.display = "block";
+    document.getElementById("main-app").style.display = "none";
+    return;
+  }
+
+  // zalogowany → otwórz modal tworzenia sklepu
+  document.getElementById("create-modal").classList.add("active");
+});
 
 </script>
 </body>
