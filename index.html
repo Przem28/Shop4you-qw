@@ -45,6 +45,7 @@
     header {
       padding: 20px 0;
       text-align: center;
+      position: relative;
     }
 
     .logo {
@@ -54,6 +55,27 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       margin-bottom: 15px;
+    }
+
+    /* Przycisk wylogowania */
+    #logout-btn {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-secondary);
+      border: none;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      display: none; /* domyślnie ukryty */
+      transition: all 0.2s ease;
+    }
+
+    #logout-btn:hover {
+      color: white;
+      background: rgba(255, 255, 255, 0.15);
     }
 
     .hero {
@@ -592,6 +614,7 @@
   <div id="main-app" class="container">
     <header>
       <div class="logo">Site4You</div>
+      <button id="logout-btn">Sign out</button>
     </header>
 
     <section class="hero">
@@ -733,7 +756,6 @@
     // === SUPABASE CONFIGURATION ===
     const supabaseUrl = 'https://djbspbwohmdkxqtxhdcx.supabase.co';
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqYnNwYndvaG1ka3hxdHhoZGN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIzNjM0MzIsImV4cCI6MjA3NzkzOTQzMn0.6PHmss7cJCrVeHaFiYQmYzLudDJ7bc7dY_f2lvEBH2c';
-    // inicjalizacja klienta - robimy to raz i używamy globalnie
     const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
 
     // DOM Elements
@@ -759,46 +781,19 @@
     const createFinalBtn = document.getElementById('create-final-btn');
     const createBtnText = document.getElementById('create-btn-text');
     const createBtnLoader = document.getElementById('create-btn-loader');
+    const logoutBtn = document.getElementById('logout-btn');
 
-    // === AUTH FUNCTIONS ===
-    async function checkUser() {
-      // poprawne wyciągnięcie usera
-      const { data } = await supabase.auth.getUser();
-      return data?.user ?? null;
+    // === Escape HTML helper ===
+    function escapeHtml(text = '') {
+      return String(text)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
     }
 
-    async function handleLogin() {
-      const email = loginEmail.value.trim();
-      if (!email) {
-        alert('Please enter your email');
-        return;
-      }
-      
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email,
-        options: {
-          emailRedirectTo: window.location.origin
-        }
-      });
-      
-      if (error) {
-        alert('Login failed: ' + error.message);
-        return;
-      }
-      
-      alert('Check your email for a magic link to sign in!');
-      
-      // Po wysłaniu magic linka, sprawdzamy czy user zalogowany (po chwili)
-      setTimeout(async () => {
-        const user = await checkUser();
-        if (user) {
-          // pokaż wybór roli jeśli ktoś się zalogował
-          roleSelect.style.display = 'block';
-        }
-      }, 3000);
-    }
-
-    // === STORE FUNCTIONS ===
+    // === Store Functions ===
     async function loadStoresForMarketplace() {
       try {
         const { data, error } = await supabase
@@ -842,20 +837,11 @@
       });
     }
 
-    function escapeHtml(text = '') {
-      return String(text)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
-    }
-
     async function uploadImage(file, userId) {
       if (!file || !userId) return null;
       const fileName = `${userId}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const {  uploadData, error: uploadError } = await supabase.storage
         .from('store-backgrounds')
         .upload(fileName, file, {
           cacheControl: '3600',
@@ -864,7 +850,7 @@
       
       if (uploadError) throw uploadError;
       
-      const { data: publicData } = await supabase.storage
+      const {  publicData } = supabase.storage
         .from('store-backgrounds')
         .getPublicUrl(fileName);
       
@@ -874,6 +860,7 @@
     function displayStoreView(subdomain) {
       mainApp.style.display = 'none';
       authScreen.style.display = 'none';
+      logoutBtn.style.display = 'none'; // ukryj logout na subdomenie
       document.getElementById('store-view').style.display = 'flex';
       
       loadStoreBySubdomain(subdomain);
@@ -895,8 +882,6 @@
         const storeView = document.getElementById('store-view');
         if (data.background_image) {
           storeView.style.backgroundImage = `url(${data.background_image})`;
-          storeView.style.backgroundSize = 'cover';
-          storeView.style.backgroundPosition = 'center';
         } else {
           storeView.style.background = 'var(--bg)';
         }
@@ -924,6 +909,189 @@
       previewUrl.textContent = `${domain || 'yourstore'}.site4you.store`;
     }
 
+    // === Auth & Role Handling ===
+    function showRoleSelection() {
+      roleSelect.style.display = 'block';
+      mainApp.style.display = 'none';
+      authScreen.style.display = 'none';
+      logoutBtn.style.display = 'none';
+    }
+
+    function showMainApp(isOwner) {
+      // Save role choice
+      localStorage.setItem('userRole', isOwner ? 'owner' : 'customer');
+      
+      roleSelect.style.display = 'none';
+      mainApp.style.display = 'block';
+      authScreen.style.display = 'none';
+      logoutBtn.style.display = 'block'; // pokaż przycisk wylogowania
+    }
+
+    async function handleLogin() {
+      const email = loginEmail.value.trim();
+      if (!email) {
+        alert('Please enter your email');
+        return;
+      }
+      
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email,
+        options: {
+          emailRedirectTo: window.location.origin
+        }
+      });
+      
+      if (error) {
+        alert('Login failed: ' + error.message);
+        return;
+      }
+      
+      alert('Check your email for a magic link to sign in!');
+    }
+
+    // === Wylogowanie ===
+    async function handleLogout() {
+      await supabase.auth.signOut();
+      localStorage.removeItem('userRole');
+      
+      // Reset UI
+      logoutBtn.style.display = 'none';
+      mainApp.style.display = 'block';
+      authScreen.style.display = 'none';
+      roleSelect.style.display = 'none';
+      
+      // Odśwież listę sklepów (publiczna wersja)
+      loadStoresForMarketplace();
+    }
+
+    // === Create Store Handler (Assigned ONLY ONCE) ===
+    async function handleCreateStore() {
+      const {  { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        alert('You must be logged in to create a store.');
+        return;
+      }
+
+      const name = storeName.value.trim();
+      if (!name) {
+        alert('Please enter your store name');
+        return;
+      }
+
+      let domain = subdomainInput.value.trim().toLowerCase();
+      if (!domain) domain = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      if (domain.length < 3) {
+        alert('Subdomain too short (min 3 characters)');
+        return;
+      }
+
+      showLoading(true);
+
+      try {
+        let imageUrl = null;
+        if (imageUpload.files.length > 0) {
+          imageUrl = await uploadImage(imageUpload.files[0], user.id);
+        }
+
+        const {  existing } = await supabase
+          .from('stores')
+          .select('id')
+          .eq('subdomain', domain)
+          .maybeSingle();
+
+        if (existing) {
+          alert('Subdomain already taken');
+          showLoading(false);
+          return;
+        }
+
+        const { error: insertError } = await supabase.from('stores').insert([{
+          user_id: user.id,
+          name,
+          subdomain: domain,
+          store_title: storeTitle.value.trim() || name,
+          description: storeDesc.value.trim() || '',
+          background_image: imageUrl
+        }]);
+
+        if (insertError) throw insertError;
+
+        alert(`🎉 Your store "${name}" has been created!\n\nYour store is live at:\nhttps://${domain}.site4you.store`);
+        document.getElementById('create-modal').classList.remove('active'); 
+        loadStoresForMarketplace();
+
+      } catch (e) {
+        console.error(e);
+        alert('Error: ' + (e.message || 'Failed to create store'));
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // === Setup Event Listeners ===
+    function setupEventListeners() {
+      // Auth toggle
+      toggleAuth.addEventListener('click', () => {
+        const isSignup = authTitle.textContent.includes('Log in');
+        if (isSignup) {
+          authTitle.textContent = 'Sign up with email';
+          loginBtn.textContent = 'Create account';
+        } else {
+          authTitle.textContent = 'Log in with email';
+          loginBtn.textContent = 'Send magic link';
+        }
+        roleSelect.style.display = 'none';
+      });
+
+      loginBtn.addEventListener('click', handleLogin);
+
+      ownerBtn.addEventListener('click', () => showMainApp(true));
+      customerBtn.addEventListener('click', () => showMainApp(false));
+
+      // Wylogowanie
+      logoutBtn.addEventListener('click', handleLogout);
+
+      // Modal close
+      closeModal.addEventListener('click', () => {
+        document.getElementById('create-modal').classList.remove('active');
+      });
+
+      document.getElementById('create-modal').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('create-modal')) {
+          document.getElementById('create-modal').classList.remove('active');
+        }
+      });
+
+      // Create store form inputs
+      [storeName, subdomainInput].forEach(el => {
+        el.addEventListener('input', updatePreviewUrl);
+      });
+      updatePreviewUrl();
+
+      uploadArea.addEventListener('click', () => {
+        imageUpload.click();
+      });
+
+      imageUpload.addEventListener('change', () => {
+        const txtEl = uploadArea.querySelector('.upload-text');
+        if (imageUpload.files.length > 0) {
+          if (txtEl) txtEl.textContent = imageUpload.files[0].name;
+        } else {
+          if (txtEl) txtEl.textContent = 'Recommended: 1920x1080px';
+        }
+      });
+
+      // Assign create handler ONCE
+      createFinalBtn.removeEventListener('click', handleCreateStore);
+      createFinalBtn.addEventListener('click', handleCreateStore);
+
+      // Footer links
+      document.getElementById('terms-link').addEventListener('click', (e) => { e.preventDefault(); alert('Terms of Service\n\nDemo version.'); });
+      document.getElementById('privacy-link').addEventListener('click', (e) => { e.preventDefault(); alert('Privacy Policy\n\nDemo version.'); });
+      document.getElementById('help-link').addEventListener('click', (e) => { e.preventDefault(); alert('Help Center\n\n1. Create store\n2. Add details\n3. Connect Stripe\n4. Start selling!'); });
+    }
+
     // === MAIN INIT ===
     document.addEventListener('DOMContentLoaded', async () => {
       const hostname = window.location.hostname;
@@ -937,245 +1105,79 @@
           return;
         }
       }
-      
-      // Main domain: show marketplace first (no login required)
-      loadStoresForMarketplace();
-      
-      // Add event listener to "Create Your Store" button
-      document.getElementById('create-store-btn').addEventListener('click', async () => {
-        const user = await checkUser();
+
+      // Set up auth state listener BEFORE anything else
+      let initialAuthCheckDone = false;
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user ?? null;
+
+      // Handle initial state
+      if (user) {
+        const hasChosenRole = localStorage.getItem('userRole');
+        if (hasChosenRole) {
+          mainApp.style.display = 'block';
+          authScreen.style.display = 'none';
+          roleSelect.style.display = 'none';
+          logoutBtn.style.display = 'block';
+        } else {
+          showRoleSelection();
+        }
+      } else {
+        // Show marketplace by default for public access
+        mainApp.style.display = 'block';
+        authScreen.style.display = 'none';
+        roleSelect.style.display = 'none';
+        logoutBtn.style.display = 'none';
+      }
+
+      // Listen for auth state changes (including after magic link)
+      supabase.auth.onAuthStateChange((event, session) => {
+        const user = session?.user ?? null;
+
+        if (initialAuthCheckDone) return;
+        initialAuthCheckDone = true;
+
         if (user) {
-          // jeśli zalogowany -> otwórz modal tworzenia
+          const hasChosenRole = localStorage.getItem('userRole');
+          if (hasChosenRole) {
+            mainApp.style.display = 'block';
+            authScreen.style.display = 'none';
+            roleSelect.style.display = 'none';
+            logoutBtn.style.display = 'block';
+          } else {
+            showRoleSelection();
+          }
+        } else {
+          // Not logged in – show marketplace (public access)
+          mainApp.style.display = 'block';
+          authScreen.style.display = 'none';
+          roleSelect.style.display = 'none';
+          logoutBtn.style.display = 'none';
+        }
+      });
+
+      // Load stores for marketplace
+      loadStoresForMarketplace();
+
+      // Create store button logic
+      document.getElementById('create-store-btn').addEventListener('click', async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
+        if (user) {
+          // Open modal directly if logged in
           document.getElementById('create-modal').classList.add('active');
         } else {
+          // Show login screen
           authScreen.style.display = 'block';
           mainApp.style.display = 'none';
+          logoutBtn.style.display = 'none';
         }
       });
-      
-      // Auth form toggle
-      toggleAuth.addEventListener('click', () => {
-        const isSignup = authTitle.textContent.includes('Log in');
-        if (isSignup) {
-          authTitle.textContent = 'Sign up with email';
-          loginBtn.textContent = 'Create account';
-        } else {
-          authTitle.textContent = 'Log in with email';
-          loginBtn.textContent = 'Send magic link';
-        }
-        roleSelect.style.display = 'none';
-      });
-      
-      loginBtn.addEventListener('click', handleLogin);
-      
-      ownerBtn.addEventListener('click', () => showMainApp(true));
-      customerBtn.addEventListener('click', () => showMainApp(false));
-      
-      // Modal close
-      closeModal.addEventListener('click', () => {
-        document.getElementById('create-modal').classList.remove('active');
-      });
-      
-      document.getElementById('create-modal').addEventListener('click', (e) => {
-        if (e.target === document.getElementById('create-modal')) {
-          document.getElementById('create-modal').classList.remove('active');
-        }
-      });
-      
-      // Create store form
-      [storeName, subdomainInput].forEach(el => {
-        el.addEventListener('input', updatePreviewUrl);
-      });
-      updatePreviewUrl();
-      
-      uploadArea.addEventListener('click', () => {
-        imageUpload.click();
-      });
-      
-      imageUpload.addEventListener('change', () => {
-        const txtEl = uploadArea.querySelector('.upload-text');
-        if (imageUpload.files.length > 0) {
-          if (txtEl) txtEl.textContent = imageUpload.files[0].name;
-        } else {
-          if (txtEl) txtEl.textContent = 'Recommended: 1920x1080px';
-        }
-      });
-      
-      // Footer links
-      document.getElementById('terms-link').addEventListener('click', (e) => { e.preventDefault(); alert('Terms of Service\n\nDemo version.'); });
-      document.getElementById('privacy-link').addEventListener('click', (e) => { e.preventDefault(); alert('Privacy Policy\n\nDemo version.'); });
-      document.getElementById('help-link').addEventListener('click', (e) => { e.preventDefault(); alert('Help Center\n\n1. Create store\n2. Add details\n3. Connect Stripe\n4. Start selling!'); });
+
+      // Set up other event listeners
+      setupEventListeners();
     });
-
-    // === Show main app after login ===
-    async function showMainApp(isOwner) {
-      authScreen.style.display = 'none';
-      mainApp.style.display = 'block';
-      
-      if (isOwner) {
-        // Add "Create Store" button only for owners (already added in HTML)
-        // Uwaga: upewnij się, że listener nie dodaje się wielokrotnie
-        if (!createFinalBtn._hasListener) {
-          createFinalBtn.addEventListener('click', async () => {
-            const { data } = await supabase.auth.getUser();
-            const user = data?.user ?? null;
-            if (!user) {
-              alert('You must be logged in to create a store.');
-              return;
-            }
-            
-            const name = storeName.value.trim();
-            if (!name) {
-              alert('Please enter your store name');
-              return;
-            }
-            
-            let domain = subdomainInput.value.trim();
-            if (!domain) {
-              domain = storeName.value.toLowerCase().replace(/[^a-z0-9]/g, '');
-            }
-            domain = domain.toLowerCase().replace(/[^a-z0-9\-]/g, '').slice(0, 63);
-            if (!domain || domain.length < 3) {
-              domain = 'store' + Date.now().toString().slice(-6);
-            }
-            
-            const title = storeTitle.value.trim() || name;
-            const description = storeDesc.value.trim() || `Welcome to ${name}!`;
-            
-            // Check if subdomain is available
-            try {
-              const { data: existing, error: checkError } = await supabase
-                .from('stores')
-                .select('id')
-                .eq('subdomain', domain)
-                .limit(1);
-              
-              if (checkError) {
-                alert('Error checking subdomain: ' + checkError.message);
-                return;
-              }
-              if (existing && existing.length > 0) {
-                alert('Subdomain already taken. Please choose another.');
-                return;
-              }
-            } catch (err) {
-              alert('Error checking subdomain: ' + (err.message || err));
-              return;
-            }
-            
-            showLoading(true);
-            
-            try {
-              let imageUrl = null;
-              if (imageUpload.files.length > 0) {
-                imageUrl = await uploadImage(imageUpload.files[0], user.id);
-              }
-              
-              const { error } = await supabase
-                .from('stores')
-                .insert([
-                  {
-                    user_id: user.id,
-                    name,
-                    subdomain: domain,
-                    store_title: title,
-                    description,
-                    background_image: imageUrl
-                  }
-                ]);
-              
-              if (error) throw error;
-              
-              const fullUrl = `https://${domain}.site4you.store`;
-              alert(`🎉 Your store "${name}" has been created!\n\nYour store is live at:\n${fullUrl}`);
-              document.getElementById('create-modal').classList.remove('active');
-              loadStoresForMarketplace();
-              
-            } catch (error) {
-              console.error('Error:', error);
-              alert('❌ Error: ' + (error.message || 'Failed to create store'));
-            } finally {
-              showLoading(false);
-            }
-          });
-          createFinalBtn._hasListener = true;
-        }
-      }
-      
-      loadStoresForMarketplace();
-    }
-  
-// ================= CREATE STORE FINAL FIX =================
-document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById('create-final-btn');
-  if (!btn) return;
-
-  btn.onclick = async () => {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error || !user) {
-      alert('You must be logged in to create a store.');
-      return;
-    }
-
-    const name = storeName.value.trim();
-    if (!name) {
-      alert('Please enter your store name');
-      return;
-    }
-
-    let domain = subdomainInput.value.trim().toLowerCase();
-    if (!domain) domain = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-    if (domain.length < 3) {
-      alert('Subdomain too short');
-      return;
-    }
-
-    showLoading(true);
-
-    try {
-      let imageUrl = null;
-      if (imageUpload.files.length > 0) {
-        imageUrl = await uploadImage(imageUpload.files[0], user.id);
-      }
-
-      const { data: existing } = await supabase
-        .from('stores')
-        .select('id')
-        .eq('subdomain', domain)
-        .maybeSingle();
-
-      if (existing) {
-        alert('Subdomain already taken');
-        showLoading(false);
-        return;
-      }
-
-      const { error: insertError } = await supabase.from('stores').insert([{
-        user_id: user.id,
-        name,
-        subdomain: domain,
-        store_title: storeTitle.value.trim() || name,
-        description: storeDesc.value.trim() || '',
-        background_image: imageUrl
-      }]);
-
-      if (insertError) throw insertError;
-
-      alert('Store created');
-      document.getElementById('create-modal').classList.remove('active'); 
-      loadStoresForMarketplace();
-
-    } catch (e) {
-      console.error(e);
-      alert(e.message);
-    } finally {
-      showLoading(false);
-    }
-  };
-});
-// ==========================================================
-
-</script>
+  </script>
 </body>
 </html>
