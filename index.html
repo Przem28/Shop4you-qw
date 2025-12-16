@@ -518,6 +518,44 @@
       display: inline-block;
     }
 
+    #role-choice-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      display: none;
+    }
+    .role-container {
+      max-width: 400px;
+      background: var(--bg-light);
+      padding: 40px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      width: 90%;
+      text-align: center;
+    }
+    .role-title {
+      font-size: 24px;
+      margin-bottom: 30px;
+      color: white;
+    }
+    .role-btn {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 18px;
+    }
+    .create-role-btn { background: linear-gradient(90deg, var(--accent), #06b6d4); color: white; }
+    .browse-role-btn { background: rgba(255,255,255,0.1); color: white; }
+
     #auth-screen {
       position: fixed;
       inset: 0;
@@ -594,25 +632,30 @@
   </style>
 </head>
 <body>
+  <!-- NOWY: Okienko wyboru roli na start -->
+  <div id="role-choice-screen">
+    <div class="role-container">
+      <h2 class="role-title">Welcome to Site4You</h2>
+      <button class="role-btn create-role-btn" id="choose-create">✅ I want to create a store</button>
+      <button class="role-btn browse-role-btn" id="choose-browse">🛒 Browse stores</button>
+    </div>
+  </div>
+
+  <!-- Ekran logowania (tylko dla twórców) -->
   <div id="auth-screen">
     <div class="auth-container">
       <h2 class="auth-title" id="auth-title">Log in with email</h2>
       <input type="email" id="login-email" class="auth-input" placeholder="Email" />
       <button class="auth-btn" id="login-btn">Send magic link</button>
       <span class="auth-toggle" id="toggle-auth">Don't have an account? Sign up</span>
-      
-      <div class="role-select" id="role-select">
-        <p style="color: var(--text-secondary); margin-bottom: 20px;">Choose your role:</p>
-        <button class="role-btn owner-btn" id="owner-btn">✅ I want to create a store</button>
-        <button class="role-btn customer-btn" id="customer-btn">🛒 Browse stores</button>
-      </div>
     </div>
   </div>
 
+  <!-- Główne UI -->
   <div id="main-app" class="container">
     <header>
       <div class="logo">Site4You</div>
-      <button id="logout-btn">Sign out</button>
+      <button id="logout-btn">Browsing as guest</button>
     </header>
 
     <section class="hero">
@@ -755,18 +798,17 @@
     const supabase = window.supabase.createClient(supabaseUrl.trim(), supabaseAnonKey.trim());
 
     // DOM Elements
+    const roleChoiceScreen = document.getElementById('role-choice-screen');
     const authScreen = document.getElementById('auth-screen');
     const mainApp = document.getElementById('main-app');
     const loginEmail = document.getElementById('login-email');
     const loginBtn = document.getElementById('login-btn');
     const toggleAuth = document.getElementById('toggle-auth');
     const authTitle = document.getElementById('auth-title');
-    const roleSelect = document.getElementById('role-select');
-    const ownerBtn = document.getElementById('owner-btn');
-    const customerBtn = document.getElementById('customer-btn');
+    const logoutBtn = document.getElementById('logout-btn');
     const storesContainer = document.getElementById('stores-container');
-    const searchInput = document.getElementById('search-input');
-    const closeModal = document.getElementById('close-modal');
+    const createModal = document.getElementById('create-modal');
+    const closeCreateModal = document.getElementById('close-modal');
     const storeName = document.getElementById('store-name');
     const subdomainInput = document.getElementById('subdomain');
     const storeTitle = document.getElementById('store-title');
@@ -777,9 +819,8 @@
     const createFinalBtn = document.getElementById('create-final-btn');
     const createBtnText = document.getElementById('create-btn-text');
     const createBtnLoader = document.getElementById('create-btn-loader');
-    const logoutBtn = document.getElementById('logout-btn');
 
-    // === Escape HTML helper ===
+    // === Escape HTML ===
     function escapeHtml(text = '') {
       return String(text)
         .replaceAll('&', '&amp;')
@@ -796,7 +837,6 @@
           .from('stores')
           .select('*')
           .order('created_at', { ascending: false });
-        
         if (error) throw error;
         renderStores(data || []);
       } catch (error) {
@@ -807,11 +847,10 @@
 
     function renderStores(storesToShow) {
       storesContainer.innerHTML = '';
-      if (!storesToShow || storesToShow.length === 0) {
+      if (!storesToShow.length) {
         storesContainer.innerHTML = '<div style="text-align: center; color: #94a3b8; grid-column: 1 / -1; padding: 40px 0;">No stores found. Be the first to create one!</div>';
         return;
       }
-      
       storesToShow.forEach(store => {
         const fullUrl = `https://${store.subdomain}.site4you.store`;
         const card = document.createElement('div');
@@ -836,29 +875,20 @@
     async function uploadImage(file, userId) {
       if (!file || !userId) return null;
       const fileName = `${userId}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-      
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('store-backgrounds')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-      
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
       if (uploadError) throw uploadError;
-      
-      const { data: publicData } = supabase.storage
-        .from('store-backgrounds')
-        .getPublicUrl(fileName);
-      
-      return publicData?.publicUrl ?? null;
+      const { data: publicData } = supabase.storage.from('store-backgrounds').getPublicUrl(fileName);
+      return publicData?.publicUrl || null;
     }
 
     function displayStoreView(subdomain) {
       mainApp.style.display = 'none';
       authScreen.style.display = 'none';
+      roleChoiceScreen.style.display = 'none';
       logoutBtn.style.display = 'none';
       document.getElementById('store-view').style.display = 'flex';
-      
       loadStoreBySubdomain(subdomain);
     }
 
@@ -869,19 +899,15 @@
           .select('*')
           .eq('subdomain', subdomain)
           .single();
-        
         if (error || !data) throw error || new Error('Store not found');
-        
         document.getElementById('dynamic-store-title').textContent = data.store_title || data.name;
         document.getElementById('dynamic-store-description').textContent = data.description || 'Welcome to my store!';
-        
         const storeView = document.getElementById('store-view');
         if (data.background_image) {
           storeView.style.backgroundImage = `url(${data.background_image})`;
         } else {
           storeView.style.background = 'var(--bg)';
         }
-        
       } catch (error) {
         console.error('Store not found:', error);
         document.getElementById('dynamic-store-title').textContent = 'Store Not Found';
@@ -890,87 +916,59 @@
       }
     }
 
-    function showLoading(show) {
-      createBtnText.style.display = show ? 'none' : 'inline';
-      createBtnLoader.style.display = show ? 'inline-block' : 'none';
-      createFinalBtn.disabled = show;
-    }
-
-    function updatePreviewUrl() {
-      const domain = (subdomainInput.value || storeName.value || 'yourstore')
-        .toString()
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '')
-        .slice(0, 63);
-      previewUrl.textContent = `${domain || 'yourstore'}.site4you.store`;
-    }
-
     // === Auth & Role Handling ===
-    function showRoleSelection() {
-      roleSelect.style.display = 'block';
-      authScreen.style.display = 'flex';
-    }
-
-    function hideAuthScreen() {
+    function showRoleChoice() {
+      roleChoiceScreen.style.display = 'flex';
+      mainApp.style.display = 'none';
       authScreen.style.display = 'none';
     }
 
-    function showMainApp(isOwner) {
-      localStorage.setItem('userRole', isOwner ? 'owner' : 'customer');
-      hideAuthScreen();
-      logoutBtn.style.display = 'block';
+    function showMainApp() {
+      roleChoiceScreen.style.display = 'none';
+      authScreen.style.display = 'none';
+      mainApp.style.display = 'block';
     }
 
     async function handleLogin() {
       const email = loginEmail.value.trim();
-      if (!email) {
-        alert('Please enter your email');
-        return;
-      }
-      
+      if (!email) return alert('Please enter your email');
       const { error } = await supabase.auth.signInWithOtp({
-        email: email,
-        options: {
-          emailRedirectTo: window.location.origin
-        }
+        email,
+        options: { emailRedirectTo: window.location.origin }
       });
-      
-      if (error) {
-        alert('Login failed: ' + error.message);
-        return;
-      }
-      
+      if (error) return alert('Login failed: ' + error.message);
       alert('Check your email for a magic link to sign in!');
     }
 
     async function handleLogout() {
       await supabase.auth.signOut();
       localStorage.removeItem('userRole');
+      logoutBtn.textContent = 'Browsing as guest';
       logoutBtn.style.display = 'none';
       loadStoresForMarketplace();
+    }
+
+    function updateUserStatus(user) {
+      if (user) {
+        logoutBtn.textContent = `Signed in as ${user.email}`;
+        logoutBtn.style.display = 'block';
+      } else {
+        logoutBtn.textContent = 'Browsing as guest';
+        logoutBtn.style.display = 'none';
+      }
     }
 
     // === Create Store Handler ===
     async function handleCreateStore() {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        alert('You must be logged in to create a store.');
-        return;
-      }
+      if (authError || !user) return alert('You must be logged in to create a store.');
 
       const name = storeName.value.trim();
-      if (!name) {
-        alert('Please enter your store name');
-        return;
-      }
+      if (!name) return alert('Please enter your store name');
 
       let domain = subdomainInput.value.trim().toLowerCase();
       if (!domain) domain = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-      if (domain.length < 3) {
-        alert('Subdomain too short (min 3 characters)');
-        return;
-      }
+      if (domain.length < 3) return alert('Subdomain too short (min 3 characters)');
 
       showLoading(true);
 
@@ -986,11 +984,7 @@
           .eq('subdomain', domain)
           .maybeSingle();
 
-        if (existing) {
-          alert('Subdomain already taken');
-          showLoading(false);
-          return;
-        }
+        if (existing) return alert('Subdomain already taken');
 
         const { error: insertError } = await supabase.from('stores').insert([{
           user_id: user.id,
@@ -1004,7 +998,7 @@
         if (insertError) throw insertError;
 
         alert(`🎉 Your store "${name}" has been created!\n\nYour store is live at:\nhttps://${domain}.site4you.store`);
-        document.getElementById('create-modal').classList.remove('active'); 
+        createModal.classList.remove('active');
         loadStoresForMarketplace();
 
       } catch (e) {
@@ -1021,21 +1015,22 @@
         const isSignup = authTitle.textContent.includes('Log in');
         authTitle.textContent = isSignup ? 'Sign up with email' : 'Log in with email';
         loginBtn.textContent = isSignup ? 'Create account' : 'Send magic link';
-        roleSelect.style.display = 'none';
       });
 
       loginBtn.addEventListener('click', handleLogin);
-      ownerBtn.addEventListener('click', () => showMainApp(true));
-      customerBtn.addEventListener('click', () => showMainApp(false));
 
-      closeModal.addEventListener('click', () => {
-        document.getElementById('create-modal').classList.remove('active');
+      document.getElementById('create-store-btn').addEventListener('click', async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          createModal.classList.add('active');
+        } else {
+          authScreen.style.display = 'flex';
+        }
       });
 
-      document.getElementById('create-modal').addEventListener('click', (e) => {
-        if (e.target === document.getElementById('create-modal')) {
-          document.getElementById('create-modal').classList.remove('active');
-        }
+      closeCreateModal.addEventListener('click', () => createModal.classList.remove('active'));
+      createModal.addEventListener('click', (e) => {
+        if (e.target === createModal) createModal.classList.remove('active');
       });
 
       [storeName, subdomainInput].forEach(el => el.addEventListener('input', updatePreviewUrl));
@@ -1044,89 +1039,84 @@
       uploadArea.addEventListener('click', () => imageUpload.click());
       imageUpload.addEventListener('change', () => {
         const txtEl = uploadArea.querySelector('.upload-text');
-        if (txtEl) {
-          txtEl.textContent = imageUpload.files.length > 0 ? imageUpload.files[0].name : 'Recommended: 1920x1080px';
-        }
+        if (txtEl) txtEl.textContent = imageUpload.files.length > 0 ? imageUpload.files[0].name : 'Recommended: 1920x1080px';
       });
 
-      // Clean up previous listeners
-      const finalBtn = document.getElementById('create-final-btn');
-      finalBtn.replaceWith(finalBtn.cloneNode(true));
-      document.getElementById('create-final-btn').addEventListener('click', handleCreateStore);
+      createFinalBtn.addEventListener('click', handleCreateStore);
 
-      document.getElementById('terms-link').addEventListener('click', (e) => { e.preventDefault(); alert('Terms of Service\n\nDemo version.'); });
-      document.getElementById('privacy-link').addEventListener('click', (e) => { e.preventDefault(); alert('Privacy Policy\n\nDemo version.'); });
-      document.getElementById('help-link').addEventListener('click', (e) => { e.preventDefault(); alert('Help Center\n\n1. Create store\n2. Add details\n3. Connect Stripe\n4. Start selling!'); });
+      document.getElementById('terms-link').addEventListener('click', e => { e.preventDefault(); alert('Terms of Service\n\nDemo version.'); });
+      document.getElementById('privacy-link').addEventListener('click', e => { e.preventDefault(); alert('Privacy Policy\n\nDemo version.'); });
+      document.getElementById('help-link').addEventListener('click', e => { e.preventDefault(); alert('Help Center\n\n1. Create store\n2. Add details\n3. Connect Stripe\n4. Start selling!'); });
     }
-
-    document.addEventListener('click', (e) => {
-      if (e.target && e.target.id === 'logout-btn') {
-        handleLogout();
-      }
-    });
-
-    // === GLOBAL HANDLER FOR CREATE BUTTON ===
-    document.addEventListener('click', async function(e) {
-      if (e.target && e.target.id === 'create-store-btn') {
-        e.preventDefault();
-        const { data: { session } } = await supabase.auth.getSession();
-        const user = session?.user ?? null;
-        if (user) {
-          document.getElementById('create-modal')?.classList.add('active');
-        } else {
-          document.getElementById('auth-screen').style.display = 'flex';
-        }
-      }
-    }, true);
 
     // === MAIN INIT ===
     document.addEventListener('DOMContentLoaded', async () => {
       const hostname = window.location.hostname;
       const mainDomain = 'site4you.store';
-      
-      if (hostname !== mainDomain && hostname !== 'www.' + mainDomain && hostname !== 'localhost') {
+
+      // Subdomain view
+      if (!['localhost', mainDomain, 'www.' + mainDomain].includes(hostname)) {
         const subdomain = hostname.split('.')[0];
-        if (subdomain) {
-          displayStoreView(subdomain);
-          return;
-        }
+        if (subdomain) return displayStoreView(subdomain);
       }
 
+      // Check current session
       const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user ?? null;
+      const user = session?.user || null;
 
       if (user) {
-        const hasChosenRole = localStorage.getItem('userRole');
-        if (hasChosenRole) {
-          logoutBtn.style.display = 'block';
-          authScreen.style.display = 'none';
-        } else {
-          showRoleSelection();
-        }
+        updateUserStatus(user);
+        showMainApp();
+        loadStoresForMarketplace();
       } else {
-        logoutBtn.style.display = 'none';
-        authScreen.style.display = 'none';
+        showRoleChoice();
       }
 
+      // Auth state listener
       supabase.auth.onAuthStateChange((event, session) => {
-        const user = session?.user ?? null;
+        const user = session?.user || null;
         if (user) {
-          const hasChosenRole = localStorage.getItem('userRole');
-          if (hasChosenRole) {
-            logoutBtn.style.display = 'block';
-            authScreen.style.display = 'none';
-          } else {
-            showRoleSelection();
-          }
+          updateUserStatus(user);
+          showMainApp();
+          loadStoresForMarketplace();
         } else {
-          logoutBtn.style.display = 'none';
-          authScreen.style.display = 'none';
+          updateUserStatus(null);
+          // Do not auto-show role choice on sign-out
         }
       });
 
-      loadStoresForMarketplace();
+      // Role choice handlers
+      document.getElementById('choose-create').addEventListener('click', () => {
+        localStorage.setItem('initialRole', 'create');
+        authScreen.style.display = 'flex';
+        roleChoiceScreen.style.display = 'none';
+      });
+
+      document.getElementById('choose-browse').addEventListener('click', () => {
+        localStorage.setItem('initialRole', 'browse');
+        showMainApp();
+        updateUserStatus(null);
+        loadStoresForMarketplace();
+      });
+
+      // Logout handler
+      logoutBtn.addEventListener('click', handleLogout);
+
       setupEventListeners();
+      updatePreviewUrl();
     });
+
+    function showLoading(show) {
+      createBtnText.style.display = show ? 'none' : 'inline';
+      createBtnLoader.style.display = show ? 'inline-block' : 'none';
+      createFinalBtn.disabled = show;
+    }
+
+    function updatePreviewUrl() {
+      const domain = (subdomainInput.value || storeName.value || 'yourstore')
+        .toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 63);
+      previewUrl.textContent = `${domain || 'yourstore'}.site4you.store`;
+    }
   </script>
 </body>
 </html>
