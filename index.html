@@ -520,20 +520,25 @@
       display: inline-block;
     }
 
-    /* Auth Screen */
+    /* Auth Screen — teraz jako overlay */
     #auth-screen {
-      display: none;
-      min-height: 100vh;
+      position: fixed;
+      inset: 0;
       background: var(--bg);
-      padding: 40px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      display: none; /* nadal ukryty domyślnie */
     }
     .auth-container {
       max-width: 400px;
-      margin: 100px auto;
       background: var(--bg-light);
       padding: 30px;
       border-radius: 20px;
       border: 1px solid var(--border);
+      width: 90%;
+      max-width: 400px;
     }
     .auth-title {
       text-align: center;
@@ -593,7 +598,7 @@
   </style>
 </head>
 <body>
-  <!-- Ekran logowania -->
+  <!-- Ekran logowania (teraz jako overlay, nie zastępuje UI) -->
   <div id="auth-screen">
     <div class="auth-container">
       <h2 class="auth-title" id="auth-title">Log in with email</h2>
@@ -610,7 +615,7 @@
     </div>
   </div>
 
-  <!-- Główne UI -->
+  <!-- Główne UI — zawsze widoczne, chyba że subdomena -->
   <div id="main-app" class="container">
     <header>
       <div class="logo">Site4You</div>
@@ -631,7 +636,7 @@
         </div>
       </div>
       
-      <!-- Przycisk "Create Your Store" - widoczny zawsze -->
+      <!-- Przycisk "Create Your Store" - działa niezawodnie -->
       <button class="create-btn" id="create-store-btn">
         <i class="fas fa-plus"></i> Create Your Store
       </button>
@@ -912,19 +917,17 @@
     // === Auth & Role Handling ===
     function showRoleSelection() {
       roleSelect.style.display = 'block';
-      mainApp.style.display = 'none';
+      authScreen.style.display = 'flex'; // pokazujemy auth overlay
+    }
+
+    function hideAuthScreen() {
       authScreen.style.display = 'none';
-      logoutBtn.style.display = 'none';
     }
 
     function showMainApp(isOwner) {
-      // Save role choice
       localStorage.setItem('userRole', isOwner ? 'owner' : 'customer');
-      
-      roleSelect.style.display = 'none';
-      mainApp.style.display = 'block';
-      authScreen.style.display = 'none';
-      logoutBtn.style.display = 'block'; // pokaż przycisk wylogowania
+      hideAuthScreen();
+      logoutBtn.style.display = 'block';
     }
 
     async function handleLogin() {
@@ -953,18 +956,11 @@
     async function handleLogout() {
       await supabase.auth.signOut();
       localStorage.removeItem('userRole');
-      
-      // Reset UI
       logoutBtn.style.display = 'none';
-      mainApp.style.display = 'block';
-      authScreen.style.display = 'none';
-      roleSelect.style.display = 'none';
-      
-      // Odśwież listę sklepów (publiczna wersja)
       loadStoresForMarketplace();
     }
 
-    // === Create Store Handler (Assigned ONLY ONCE) ===
+    // === Create Store Handler ===
     async function handleCreateStore() {
       const {  { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) {
@@ -1031,26 +1027,16 @@
 
     // === Setup Event Listeners ===
     function setupEventListeners() {
-      // Auth toggle
       toggleAuth.addEventListener('click', () => {
         const isSignup = authTitle.textContent.includes('Log in');
-        if (isSignup) {
-          authTitle.textContent = 'Sign up with email';
-          loginBtn.textContent = 'Create account';
-        } else {
-          authTitle.textContent = 'Log in with email';
-          loginBtn.textContent = 'Send magic link';
-        }
+        authTitle.textContent = isSignup ? 'Sign up with email' : 'Log in with email';
+        loginBtn.textContent = isSignup ? 'Create account' : 'Send magic link';
         roleSelect.style.display = 'none';
       });
 
       loginBtn.addEventListener('click', handleLogin);
-
       ownerBtn.addEventListener('click', () => showMainApp(true));
       customerBtn.addEventListener('click', () => showMainApp(false));
-
-      // Wylogowanie
-      logoutBtn.addEventListener('click', handleLogout);
 
       // Modal close
       closeModal.addEventListener('click', () => {
@@ -1063,26 +1049,17 @@
         }
       });
 
-      // Create store form inputs
-      [storeName, subdomainInput].forEach(el => {
-        el.addEventListener('input', updatePreviewUrl);
-      });
+      [storeName, subdomainInput].forEach(el => el.addEventListener('input', updatePreviewUrl));
       updatePreviewUrl();
 
-      uploadArea.addEventListener('click', () => {
-        imageUpload.click();
-      });
-
+      uploadArea.addEventListener('click', () => imageUpload.click());
       imageUpload.addEventListener('change', () => {
         const txtEl = uploadArea.querySelector('.upload-text');
-        if (imageUpload.files.length > 0) {
-          if (txtEl) txtEl.textContent = imageUpload.files[0].name;
-        } else {
-          if (txtEl) txtEl.textContent = 'Recommended: 1920x1080px';
+        if (txtEl) {
+          txtEl.textContent = imageUpload.files.length > 0 ? imageUpload.files[0].name : 'Recommended: 1920x1080px';
         }
       });
 
-      // Assign create handler ONCE
       createFinalBtn.removeEventListener('click', handleCreateStore);
       createFinalBtn.addEventListener('click', handleCreateStore);
 
@@ -1092,12 +1069,19 @@
       document.getElementById('help-link').addEventListener('click', (e) => { e.preventDefault(); alert('Help Center\n\n1. Create store\n2. Add details\n3. Connect Stripe\n4. Start selling!'); });
     }
 
+    // Delegacja dla wylogowania
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'logout-btn') {
+        handleLogout();
+      }
+    });
+
     // === MAIN INIT ===
     document.addEventListener('DOMContentLoaded', async () => {
       const hostname = window.location.hostname;
       const mainDomain = 'site4you.store';
       
-      // Public store view (subdomain) - no login required
+      // Public store view (subdomain)
       if (hostname !== mainDomain && hostname !== 'www.' + mainDomain && hostname !== 'localhost') {
         const subdomain = hostname.split('.')[0];
         if (subdomain) {
@@ -1106,76 +1090,56 @@
         }
       }
 
-      // Set up auth state listener BEFORE anything else
-      let initialAuthCheckDone = false;
-
-      const { data: { session } } = await supabase.auth.getSession();
+      // Sprawdź początkowy stan sesji
+      const {  { session } } = await supabase.auth.getSession();
       const user = session?.user ?? null;
 
-      // Handle initial state
       if (user) {
         const hasChosenRole = localStorage.getItem('userRole');
         if (hasChosenRole) {
-          mainApp.style.display = 'block';
-          authScreen.style.display = 'none';
-          roleSelect.style.display = 'none';
           logoutBtn.style.display = 'block';
+          authScreen.style.display = 'none';
         } else {
           showRoleSelection();
         }
       } else {
-        // Show marketplace by default for public access
-        mainApp.style.display = 'block';
-        authScreen.style.display = 'none';
-        roleSelect.style.display = 'none';
         logoutBtn.style.display = 'none';
+        authScreen.style.display = 'none';
       }
 
-      // Listen for auth state changes (including after magic link)
+      // Nasłuchiwanie zmian sesji
       supabase.auth.onAuthStateChange((event, session) => {
         const user = session?.user ?? null;
-
-        if (initialAuthCheckDone) return;
-        initialAuthCheckDone = true;
-
         if (user) {
           const hasChosenRole = localStorage.getItem('userRole');
           if (hasChosenRole) {
-            mainApp.style.display = 'block';
-            authScreen.style.display = 'none';
-            roleSelect.style.display = 'none';
             logoutBtn.style.display = 'block';
+            authScreen.style.display = 'none';
           } else {
             showRoleSelection();
           }
         } else {
-          // Not logged in – show marketplace (public access)
-          mainApp.style.display = 'block';
-          authScreen.style.display = 'none';
-          roleSelect.style.display = 'none';
           logoutBtn.style.display = 'none';
+          authScreen.style.display = 'none';
         }
       });
 
-      // Load stores for marketplace
+      // Ładujemy sklepy
       loadStoresForMarketplace();
 
-      // Create store button logic
+      // ✅ NAPRAWIONY PRZYCISK "Create Your Store"
       document.getElementById('create-store-btn').addEventListener('click', async () => {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {  { session } } = await supabase.auth.getSession();
         const user = session?.user ?? null;
         if (user) {
-          // Open modal directly if logged in
+          // Zalogowany — otwórz modal tworzenia
           document.getElementById('create-modal').classList.add('active');
         } else {
-          // Show login screen
-          authScreen.style.display = 'block';
-          mainApp.style.display = 'none';
-          logoutBtn.style.display = 'none';
+          // Niezalogowany — pokaż overlay logowania (NIE ukrywaj mainApp!)
+          authScreen.style.display = 'flex';
         }
       });
 
-      // Set up other event listeners
       setupEventListeners();
     });
   </script>
