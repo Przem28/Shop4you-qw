@@ -57,7 +57,7 @@
       margin-bottom: 15px;
     }
 
-    #logout-btn, #my-store-btn {
+    #logout-btn {
       position: absolute;
       top: 15px;
       right: 20px;
@@ -71,11 +71,7 @@
       transition: all 0.2s ease;
     }
 
-    #my-store-btn {
-      right: 100px;
-    }
-
-    #logout-btn:hover, #my-store-btn:hover {
+    #logout-btn:hover {
       color: white;
       background: rgba(255, 255, 255, 0.15);
     }
@@ -307,7 +303,6 @@
       font-size: 14px;
     }
 
-    /* MODALY */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -523,7 +518,6 @@
       display: inline-block;
     }
 
-    /* ROLE CHOICE SCREEN */
     #role-choice-screen {
       position: fixed;
       inset: 0;
@@ -562,7 +556,6 @@
     .create-role-btn { background: linear-gradient(90deg, var(--accent), #06b6d4); color: white; }
     .browse-role-btn { background: rgba(255,255,255,0.1); color: white; }
 
-    /* AUTH SCREEN */
     #auth-screen {
       position: fixed;
       inset: 0;
@@ -644,7 +637,6 @@
   <div id="main-app" class="container">
     <header>
       <div class="logo">Site4You</div>
-      <button id="my-store-btn" style="display:none;">My Store</button>
       <button id="logout-btn">Browsing as guest</button>
     </header>
 
@@ -730,7 +722,7 @@
     </div>
   </div>
 
-  <!-- Modals -->
+  <!-- Create Store Modal -->
   <div class="modal-overlay" id="create-modal">
     <div class="modal">
       <div class="modal-header">
@@ -758,7 +750,7 @@
         </div>
         <div class="form-group">
           <label class="form-label">Description</label>
-          <textarea class="form-textarea" id="store-desc" rows="3" placeholder="Tell customers about your store..."></textarea>
+          <textarea class="form-input" id="store-desc" rows="3" placeholder="Tell customers about your store..."></textarea>
         </div>
         <button class="btn btn-primary" id="create-final-btn">
           <span id="create-btn-text">Create My Store</span>
@@ -781,7 +773,6 @@
     const loginEmail = document.getElementById('login-email');
     const loginBtn = document.getElementById('login-btn');
     const logoutBtn = document.getElementById('logout-btn');
-    const myStoreBtn = document.getElementById('my-store-btn');
     const storesContainer = document.getElementById('stores-container');
     const createModal = document.getElementById('create-modal');
     const closeCreateModal = document.getElementById('close-create-modal');
@@ -791,8 +782,6 @@
     const storeDesc = document.getElementById('store-desc');
     const previewUrl = document.getElementById('preview-url');
     const createFinalBtn = document.getElementById('create-final-btn');
-    const createBtnText = document.getElementById('create-btn-text');
-    const createBtnLoader = document.getElementById('create-btn-loader');
 
     // === Escape HTML ===
     function escapeHtml(text = '') {
@@ -804,7 +793,7 @@
         .replaceAll("'", '&#039;');
     }
 
-    // === STORE FUNCTIONS ===
+    // === Store Functions ===
     async function loadStoresForMarketplace() {
       try {
         const { data, error } = await supabase
@@ -879,7 +868,7 @@
       }
     }
 
-    // === AUTH & UI ===
+    // === Auth & UI ===
     async function handleLogin() {
       const email = loginEmail.value.trim();
       if (!email) {
@@ -897,15 +886,6 @@
         return;
       }
       alert('Check your email for a magic link to sign in!');
-    }
-
-    async function handleLogout() {
-      await supabase.auth.signOut();
-      localStorage.removeItem('userRole');
-      logoutBtn.textContent = 'Browsing as guest';
-      logoutBtn.style.display = 'none';
-      myStoreBtn.style.display = 'none';
-      loadStoresForMarketplace();
     }
 
     function showRoleChoice() {
@@ -928,33 +908,15 @@
       if (user) {
         logoutBtn.textContent = `Signed in as ${user.email}`;
         logoutBtn.style.display = 'block';
-        checkAndShowMyStore(user.id);
       } else {
         logoutBtn.textContent = 'Browsing as guest';
         logoutBtn.style.display = 'none';
-        myStoreBtn.style.display = 'none';
-      }
-    }
-
-    async function checkAndShowMyStore(userId) {
-      const { data } = await supabase
-        .from('stores')
-        .select('id, name, subdomain')
-        .eq('user_id', userId)
-        .maybeSingle();
-      if (data) {
-        myStoreBtn.style.display = 'block';
-        myStoreBtn.onclick = () => {
-          window.location.href = `https://${data.subdomain}.site4you.store`;
-        };
-      } else {
-        myStoreBtn.style.display = 'none';
       }
     }
 
     // === CREATE STORE HANDLER ===
     async function handleCreateStore() {
-      const {  { user }, error: authError } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) {
         alert('You must be logged in to create a store.');
         return;
@@ -974,10 +936,15 @@
         return;
       }
 
-      showLoading(true);
+      // Show loading
+      const createBtnText = document.getElementById('create-btn-text');
+      const createBtnLoader = document.getElementById('create-btn-loader');
+      createBtnText.style.display = 'none';
+      createBtnLoader.style.display = 'inline-block';
+      createFinalBtn.disabled = true;
 
       try {
-        const {  existing } = await supabase
+        const { data: existing } = await supabase
           .from('stores')
           .select('id')
           .eq('subdomain', domain)
@@ -985,7 +952,6 @@
 
         if (existing) {
           alert('Subdomain already taken');
-          showLoading(false);
           return;
         }
 
@@ -1003,109 +969,89 @@
         alert(`🎉 Your store "${name}" has been created!\n\nYour store is live at:\nhttps://${domain}.site4you.store`);
         createModal.classList.remove('active'); 
         loadStoresForMarketplace();
-        checkAndShowMyStore(user.id);
 
+        // Uaktualnij status
+        updateUserStatus(user);
       } catch (e) {
         console.error(e);
         alert('Error: ' + (e.message || 'Failed to create store'));
       } finally {
-        showLoading(false);
+        createBtnText.style.display = 'inline';
+        createBtnLoader.style.display = 'none';
+        createFinalBtn.disabled = false;
       }
-    }
-
-    function showLoading(show) {
-      createBtnText.style.display = show ? 'none' : 'inline';
-      createBtnLoader.style.display = show ? 'inline-block' : 'none';
-      createFinalBtn.disabled = show;
     }
 
     function updatePreviewUrl() {
       const domain = (subdomainInput.value || storeName.value || 'yourstore')
-        .toString()
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '')
-        .slice(0, 63);
+        .toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 63);
       previewUrl.textContent = `${domain || 'yourstore'}.site4you.store`;
     }
 
-    // === SETUP EVENT LISTENERS ===
-    function setupEventListeners() {
-      toggleAuth.addEventListener('click', () => {
-        const isSignup = authTitle.textContent.includes('Log in');
-        authTitle.textContent = isSignup ? 'Sign up with email' : 'Log in with email';
-        loginBtn.textContent = isSignup ? 'Create account' : 'Send magic link';
-        roleSelect.style.display = 'none';
-      });
-
-      loginBtn.addEventListener('click', handleLogin);
-      ownerBtn.addEventListener('click', () => showMainApp(true));
-      customerBtn.addEventListener('click', () => showMainApp(false));
-
-      // Close modal
-      closeCreateModal.addEventListener('click', () => {
-        createModal.classList.remove('active');
-      });
-
-      createModal.addEventListener('click', (e) => {
-        if (e.target === createModal) {
-          createModal.classList.remove('active');
-        }
-      });
-
-      [storeName, subdomainInput].forEach(el => el.addEventListener('input', updatePreviewUrl));
-      updatePreviewUrl();
-
-      createFinalBtn.removeEventListener('click', handleCreateStore);
-      createFinalBtn.addEventListener('click', handleCreateStore);
-
-      document.getElementById('terms-link').addEventListener('click', (e) => { e.preventDefault(); alert('Terms of Service\n\nDemo version.'); });
-      document.getElementById('privacy-link').addEventListener('click', (e) => { e.preventDefault(); alert('Privacy Policy\n\nDemo version.'); });
-      document.getElementById('help-link').addEventListener('click', (e) => { e.preventDefault(); alert('Help Center\n\n1. Create store\n2. Add details\n3. Connect Stripe\n4. Start selling!'); });
-    }
-
-    // === GLOBAL EVENT LISTENERS (fix for "nothing happens") ===
+    // === GLOBAL EVENT LISTENERS ===
     document.addEventListener('click', async function(e) {
-      // ✅ Handle "Create Your Store" button
+      // ✅ "Create Your Store" button
       if (e.target && e.target.id === 'create-store-btn') {
         e.preventDefault();
-        const {  { session } } = await supabase.auth.getSession();
-        const user = session?.user ?? null;
-        if (user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          // Zalogowany — otwórz modal
           createModal.classList.add('active');
         } else {
+          // Niezalogowany — otwórz logowanie
           authScreen.style.display = 'flex';
         }
       }
 
-      // ✅ Handle "Logout" button
+      // ✅ "Browsing as guest" lub "Signed in as..." — otwórz logowanie
       if (e.target && e.target.id === 'logout-btn') {
         e.preventDefault();
-        handleLogout();
+        // Nie wylogowuj! Tylko pokaż logowanie
+        authScreen.style.display = 'flex';
       }
 
-      // ✅ Handle "Choose Create" button
+      // ✅ Zamknij modal
+      if (e.target && e.target.id === 'close-create-modal') {
+        createModal.classList.remove('active');
+      }
+
+      // ✅ Kliknięcie poza modal
+      if (e.target === createModal) {
+        createModal.classList.remove('active');
+      }
+
+      // ✅ Role choice
       if (e.target && e.target.id === 'choose-create') {
-        e.preventDefault();
         authScreen.style.display = 'flex';
         roleChoiceScreen.style.display = 'none';
       }
 
-      // ✅ Handle "Choose Browse" button
       if (e.target && e.target.id === 'choose-browse') {
-        e.preventDefault();
         showMainApp();
         updateUserStatus(null);
         loadStoresForMarketplace();
       }
     });
 
+    // === MODAL INPUTS ===
+    [storeName, subdomainInput].forEach(el => {
+      el.addEventListener('input', updatePreviewUrl);
+    });
+    updatePreviewUrl();
+
+    // === AUTH LOGIN ===
+    loginBtn.addEventListener('click', handleLogin);
+
+    // === CREATE STORE SUBMIT ===
+    createFinalBtn.addEventListener('click', handleCreateStore);
+
     // === MAIN INIT ===
     document.addEventListener('DOMContentLoaded', async () => {
       const hostname = window.location.hostname;
       const mainDomain = 'site4you.store';
       
-      // Public store view (subdomain)
-      if (hostname !== mainDomain && hostname !== 'www.' + mainDomain && hostname !== 'localhost') {
+      // Subdomain view
+      if (!['localhost', mainDomain, 'www.' + mainDomain].includes(hostname)) {
         const subdomain = hostname.split('.')[0];
         if (subdomain) {
           displayStoreView(subdomain);
@@ -1113,42 +1059,31 @@
         }
       }
 
-      // Check current session
-      const {  { session } } = await supabase.auth.getSession();
+      // Sprawdź sesję
+      const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user ?? null;
 
       if (user) {
-        const hasChosenRole = localStorage.getItem('userRole');
-        if (hasChosenRole) {
-          logoutBtn.style.display = 'block';
-          authScreen.style.display = 'none';
-        } else {
-          showRoleSelection();
-        }
+        showMainApp();
+        updateUserStatus(user);
+        loadStoresForMarketplace();
       } else {
-        logoutBtn.style.display = 'none';
-        authScreen.style.display = 'none';
+        showRoleChoice();
       }
 
       // Nasłuchiwanie zmian sesji
       supabase.auth.onAuthStateChange((event, session) => {
         const user = session?.user ?? null;
         if (user) {
-          const hasChosenRole = localStorage.getItem('userRole');
-          if (hasChosenRole) {
-            logoutBtn.style.display = 'block';
-            authScreen.style.display = 'none';
-          } else {
-            showRoleSelection();
-          }
+          showMainApp();
+          updateUserStatus(user);
+          loadStoresForMarketplace();
         } else {
-          logoutBtn.style.display = 'none';
-          authScreen.style.display = 'none';
+          showRoleChoice();
         }
       });
 
       loadStoresForMarketplace();
-      setupEventListeners();
     });
   </script>
 </body>
